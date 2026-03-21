@@ -50,7 +50,7 @@ The Shelly mJS runtime is severely limited. When writing or modifying `device/co
 - **Max ~4-5 concurrent timers.** Exceeding this crashes the script. Consolidate into fewer timers with counter-based dispatch (e.g., one 30s timer handles tick, schedule check, and heartbeat).
 - **Max ~3 concurrent Shelly.call().** Firing 6 parallel KVS.Get calls causes "too many calls in progress" crash. Chain them sequentially instead of parallel.
 - **Shelly.call userdata (4th param) is unreliable** — always arrives as empty string in callbacks. Use closure-captured variables instead.
-- **Switch.Set generates events.** Calling `Switch.Set` fires a `toggle` event on `switch:0`. If the button handler catches all events, it creates a rapid on-off feedback loop. Filter to `single_push` or `btn_down` events only.
+- **Plug S Gen3 has no separate Input component.** The physical button toggles the switch directly in firmware — there is no `single_push` or `btn_down` event. Both button presses and `Switch.Set` calls fire the same status change on `switch:0`. Use a `script_switching` flag: set it before calling `Switch.Set`, clear it in the callback. The status handler ignores changes when the flag is set, and treats changes when the flag is clear as physical button presses.
 - **Script.PutCode append mode.** Large scripts may need multiple PutCode calls with `append: true` after the first chunk.
 - **Script upload via RPC.** No need to paste into web UI — use `Script.Create` + `Script.PutCode` + `Script.Start` + `Script.SetConfig` (enable: true for auto-start).
 
