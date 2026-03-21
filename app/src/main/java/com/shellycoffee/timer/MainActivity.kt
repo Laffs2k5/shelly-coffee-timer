@@ -5,6 +5,7 @@ import android.content.SharedPreferences
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.*
@@ -37,7 +38,7 @@ class MainActivity : ComponentActivity() {
         setContent {
             MaterialTheme(
                 colorScheme = darkColorScheme(
-                    primary = Color(0xFF90CAF9),
+                    primary = Color(0xFF4CAF50),
                     onPrimary = Color(0xFF1A1A1A),
                     surface = Color(0xFF1A1A1A),
                     onSurface = Color(0xFFE0E0E0),
@@ -45,6 +46,7 @@ class MainActivity : ComponentActivity() {
                     onSurfaceVariant = Color(0xFFBBBBBB),
                     secondary = Color(0xFF4CAF50),
                     outline = Color(0xFF444444),
+                    surfaceContainerHighest = Color(0xFF333333),
                 )
             ) {
                 AppNavigation()
@@ -85,7 +87,7 @@ fun SettingsScreen(onBack: () -> Unit) {
             TopAppBar(
                 title = { Text("Settings") },
                 navigationIcon = {
-                    TextButton(onClick = onBack) { Text("Back") }
+                    TextButton(onClick = onBack) { Text("Back", color = Color(0xFFBBBBBB)) }
                 },
                 colors = TopAppBarDefaults.topAppBarColors(
                     containerColor = MaterialTheme.colorScheme.surface,
@@ -292,7 +294,7 @@ fun MainScreen(onNavigateToSettings: () -> Unit) {
                 title = { Text("Coffee Timer") },
                 actions = {
                     TextButton(onClick = onNavigateToSettings) {
-                        Text("Settings")
+                        Text("Settings", color = Color(0xFFBBBBBB))
                     }
                 },
                 colors = TopAppBarDefaults.topAppBarColors(
@@ -402,26 +404,34 @@ fun MainScreen(onNavigateToSettings: () -> Unit) {
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.spacedBy(8.dp)
             ) {
-                FilledTonalButton(
+                OutlinedButton(
                     onClick = { sendCmd("off") },
                     enabled = !sending,
                     modifier = Modifier.weight(1f),
-                ) { Text("OFF") }
-                Button(
+                    shape = RoundedCornerShape(8.dp),
+                    border = BorderStroke(1.dp, Color(0xFF444444)),
+                ) { Text("OFF", color = Color(0xFFE0E0E0)) }
+                OutlinedButton(
                     onClick = { sendCmd("sub") },
                     enabled = !sending,
-                    modifier = Modifier.weight(1f)
-                ) { Text("-30") }
-                Button(
+                    modifier = Modifier.weight(1f),
+                    shape = RoundedCornerShape(8.dp),
+                    border = BorderStroke(1.dp, Color(0xFF444444)),
+                ) { Text("-30", color = Color(0xFFE0E0E0)) }
+                OutlinedButton(
                     onClick = { sendCmd("ext") },
                     enabled = !sending,
-                    modifier = Modifier.weight(1f)
-                ) { Text("+30") }
-                Button(
+                    modifier = Modifier.weight(1f),
+                    shape = RoundedCornerShape(8.dp),
+                    border = BorderStroke(1.dp, Color(0xFF444444)),
+                ) { Text("+30", color = Color(0xFFE0E0E0)) }
+                OutlinedButton(
                     onClick = { sendCmd("t90") },
                     enabled = !sending,
-                    modifier = Modifier.weight(1f)
-                ) { Text("90") }
+                    modifier = Modifier.weight(1f),
+                    shape = RoundedCornerShape(8.dp),
+                    border = BorderStroke(1.dp, Color(0xFF4CAF50)),
+                ) { Text("90", color = Color(0xFF4CAF50)) }
             }
 
             HorizontalDivider(color = MaterialTheme.colorScheme.outline)
@@ -453,7 +463,8 @@ fun MainScreen(onNavigateToSettings: () -> Unit) {
                 TextButton(onClick = { showTimePicker = true }) {
                     Text(
                         String.format(Locale.getDefault(), "%02d:%02d", scheduleHour, scheduleMinute),
-                        fontSize = 18.sp
+                        fontSize = 18.sp,
+                        color = Color(0xFFE0E0E0)
                     )
                 }
             }
