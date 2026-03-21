@@ -79,7 +79,7 @@ This adds complexity and a DST footgun. Much better if the firmware provides loc
 
 ---
 
-### 2.3 [MEDIUM RISK] First-ever boot with empty Adafruit IO feeds
+### 2.3 [RESOLVED] First-ever boot with empty Adafruit IO feeds
 
 **The problem:** No doc describes the complete flow when the system is deployed for the very first time — before anyone has ever written to the config, command, or heartbeat feeds.
 
@@ -97,9 +97,9 @@ This adds complexity and a DST footgun. Much better if the firmware provides loc
 
 **This flow is actually fine** — the design's fallback-to-defaults behavior handles it gracefully. But it should be documented explicitly so there's no surprise during first deployment.
 
-**Resolution needed:** Verify empirically that Adafruit IO's `/get` response for an empty feed doesn't crash the mJS JSON parser or cause unexpected behavior. Add a note to doc 07 §2.1 documenting the expected first-boot sequence.
+**Resolution:** Verified empirically during Phase 2A.6 — Adafruit IO's `/get` response for an empty feed returns non-JSON content. The mJS script handles this gracefully (JSON.parse fails, caught, defaults used).
 
-**Status:** TBD
+**Status:** RESOLVED
 
 ---
 
@@ -155,9 +155,13 @@ The device receives both. It accepts the first one (v=4 > v=3) and ignores the s
 
 Decisions are numbered sequentially within each doc but collide across docs: docs 00–03 use 1–26, doc 04 uses 27–35, doc 05 uses 36–46, doc 06 uses 36a–44a, doc 07 uses 45a–47a. A single-pass renumbering across all docs should be done before implementation, or (simpler) adopt a prefix scheme: `D00.1`, `D02.7`, `D05.36`, etc.
 
+**Status:** Deferred to Phase 5 (Testing & Quality).
+
 ### 3.2 Doc 00 open questions — audit for answered items
 
 Many of doc 00's open questions (§5) have been answered by later docs. A pass through that list to mark items as resolved (with cross-references) would keep the document useful as a historical record rather than confusing as an outdated checklist.
+
+**Status:** Deferred to Phase 5 (Testing & Quality).
 
 ---
 
@@ -200,5 +204,5 @@ Setting `topic_prefix` to `""` causes the Shelly to revert it to the device ID (
 | 2.3 | ~~Test `/get` response on empty feed~~ | ~~Medium~~ | RESOLVED (Phase 2A.6) — returns non-JSON, script handles gracefully |
 | 2.4 | Design post-command UX for remote path | Medium | Android app implementation (doc 06) |
 | 2.5 | Multi-phone config race | Low | Nothing — accepted limitation |
-| 3.1 | Decision renumbering | None | Nothing — cosmetic |
-| 3.2 | Doc 00 open questions audit | None | Nothing — housekeeping |
+| 3.1 | Decision renumbering | None | Deferred to Phase 5 |
+| 3.2 | Doc 00 open questions audit | None | Deferred to Phase 5 |

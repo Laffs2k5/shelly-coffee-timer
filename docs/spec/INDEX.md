@@ -2,6 +2,10 @@
 
 > This index and all numbered documents (00–10) live in `docs/spec/`. These are the specification documents — the blueprint used to design and build the system. For operational and development documentation, see `docs/`.
 
+## Project status
+
+All three implementation phases are complete. The system is live and working: device script running on the Shelly, Android app sideloaded, web control page hosted on GitHub Pages. See doc 09 for the full phase plan, including future phases 4 (UI Polish) and 5 (Testing & Quality).
+
 ## Project summary
 
 A smart plug (Shelly Plug S Gen3) controlling a coffee maker. Every on-state is a countdown timer — no "on indefinitely." The device operates autonomously with local-first control and optional remote access via Adafruit IO. Controlled from an Android app or web browser.
@@ -11,7 +15,7 @@ A smart plug (Shelly Plug S Gen3) controlling a coffee maker. Every on-state is 
 ## Documents
 
 ### 00 — Landscape Exploration & Initial Research
-`00-shelly-automation-initial-looking-around.md`
+`00-landscape.md`
 
 What exists and what's possible. Covers: device hardware and capabilities, scripting environment (mJS), communication options (MQTT, REST, webhooks), Shelly Cloud evaluation (excluded), third-party service candidates (Adafruit IO selected), protocol comparison (MQTT vs REST). Establishes the core design constraints and principles.
 
@@ -20,7 +24,7 @@ What exists and what's possible. Covers: device hardware and capabilities, scrip
 ---
 
 ### 01 — Functional Requirements
-`01-functional-requirements.md`
+`01-requirements.md`
 
 What the plug does. Covers: three control paths (physical button, local HTTP, remote MQTT), timer rules (every on-state is a countdown, 180-min cap), schedule behavior (one-off, auto-disarm), safety requirements (power-loss → off, staleness check, NTP dependency), and the autonomous behavior matrix.
 
@@ -29,7 +33,7 @@ What the plug does. Covers: three control paths (physical button, local HTTP, re
 ---
 
 ### 02 — Communication Architecture
-`02-communication-architecture.md`
+`02-communication.md`
 
 How the pieces talk. Covers: remote path (Shelly ↔ Adafruit IO ↔ phone via MQTT+REST), local path (phone → Shelly direct HTTP), three-feed structure (command, config, heartbeat), data flow scenarios, authority model, feed mapping, message budget analysis, and failure modes.
 
@@ -42,14 +46,14 @@ How the pieces talk. Covers: remote path (Shelly ↔ Adafruit IO ↔ phone via M
 ### 03 — Message Format Design
 `03-message-format.md`
 
-What the bytes look like. Covers: JSON encoding for all three feeds, command codes (`on`, `off`, `ext`, `sub`, `t90`), config payload (versioned, with `dur` and `max`), heartbeat payload, local HTTP API (RPC endpoints and responses), Adafruit IO-specific formatting (value envelope), and encoding rationale (why JSON, why flat, why short keys).
+What the bytes look like. Covers: JSON encoding for all three feeds, command codes (`on`, `off`, `ext`, `sub`, `t90`), config payload (versioned, with `dur` and `max`), heartbeat payload, local HTTP API (endpoints and responses), Adafruit IO-specific formatting (value envelope), and encoding rationale (why JSON, why flat, why short keys).
 
 **Key content:** Command format with timestamp (§2.1), config version field (§3.2), heartbeat fields (§4.1), local vs remote key name mapping (§2.3), message budget verification (§5).
 
 ---
 
 ### 04 — Adafruit IO Setup & Validation
-`04-adafruit-io-setup-and-validation.md`
+`04-adafruit-io.md`
 
 Proving the theory works. Covers: account setup, free tier limits (confirmed: 10 feeds, 30 msg/min), the critical finding that **Adafruit IO does not support MQTT retain** and the `/get` topic workaround, MQTT connection details, Shelly MQTT configuration (`Mqtt.SetConfig`), TLS options, topic format, JSON payload behavior on Adafruit IO, and a 6-step validation test plan.
 
@@ -58,16 +62,18 @@ Proving the theory works. Covers: account setup, free tier limits (confirmed: 10
 ---
 
 ### 05 — On-Device State Machine
-`05-on-device-state-machine.md`
+`05-state-machine.md`
 
-The mJS brain. Covers: state model (in-memory vs KVS-persisted), 10-step boot sequence, all event handlers (button, MQTT command, MQTT config, MQTT connect, timer tick, heartbeat, schedule check), core functions (turn_on, turn_off, execute_command, publish_heartbeat), local HTTP RPC endpoints, NTP sync detection, timer precision model, heartbeat publishing strategy, config processing, mJS implementation considerations, state transition diagram, and three complete event flow examples.
+The mJS brain. Covers: state model (in-memory vs KVS-persisted), 10-step boot sequence, all event handlers (button, MQTT command, MQTT config, MQTT connect, timer tick, heartbeat, schedule check), core functions (turn_on, turn_off, execute_command, publish_heartbeat), local HTTP endpoints (`HTTPServer.registerEndpoint()`), NTP sync detection, timer precision model, heartbeat publishing strategy, config processing, mJS implementation considerations, state transition diagram, and three complete event flow examples.
 
-**Key content:** Boot sequence with async KVS loading (§3), command execution shared by MQTT and HTTP paths (§5.3), heartbeat debounce (§9.3), mJS pitfalls (§11), state transition diagram (§12).
+**Key content:** Boot sequence with sequential KVS loading (§3), command execution shared by MQTT and HTTP paths (§5.3), heartbeat debounce (§9.3), mJS pitfalls (§11), state transition diagram (§12).
+
+**Implementation notes:** Several spec assumptions were corrected during Phase 2 — see doc 08 §4 for lessons learned (timer limits, call concurrency, event feedback loops).
 
 ---
 
 ### 06 — Phone Control Interface
-`06-phone-control-interface.md`
+`06-phone-interface.md`
 
 How the human interacts. Covers: requirements (live status, instant controls, schedule config, auto-detect local/remote), technology evaluation (why CORS kills pure web → native Android app), Kotlin/Compose app design, UI layout matching mockup, auto-detect logic (local-first with 2s timeout), command routing (local vs remote), schedule changes (always via Adafruit IO), app configuration, HTML fallback for computers, and data flow diagrams for all operations.
 
@@ -76,7 +82,7 @@ How the human interacts. Covers: requirements (live status, instant controls, sc
 ---
 
 ### 07 — Deployment & Operations
-`07-deployment-and-operations.md`
+`07-deployment.md`
 
 Keeping it running. Covers: initial deployment steps, script update process (manual via web UI, version-controlled in git), wifi/network changes (house move, IP change), credential management (AIO key rotation requires local wifi access), monitoring and troubleshooting checklist, common failure scenarios with fixes, nuclear recovery option, backup strategy, total-loss recovery, and future considerations.
 
@@ -87,24 +93,26 @@ Keeping it running. Covers: initial deployment steps, script update process (man
 ### 08 — Open Investigations & Risk Items
 `08-open-investigations.md`
 
-What must be validated before implementation. Five items ordered by risk:
+What was validated before and during implementation. Five items ordered by risk:
 
 1. ~~**[HIGH]** `Shelly.addRPCHandler()`~~ — RESOLVED: does not exist. Use `HTTPServer.registerEndpoint()`.
 2. ~~**[HIGH]** Timezone-aware local time in mJS~~ — RESOLVED: `new Date().getHours()/getMinutes()` works, DST-aware.
-3. **[MEDIUM]** First-ever boot with empty feeds — verify `/get` on empty feed doesn't crash.
+3. ~~**[MEDIUM]** First-ever boot with empty feeds~~ — RESOLVED: `/get` on empty feed returns non-JSON, script handles gracefully.
 4. **[MEDIUM]** Stale remote status after command — UX decision for the Android app.
 5. **[LOW]** Multi-phone config version race — accepted limitation, documented.
 
-Plus two cleanup items: decision renumbering and doc 00 open questions audit.
+Plus two cleanup items (decision renumbering, doc 00 audit) deferred to Phase 5.
+
+Also includes Phase 2 implementation lessons (§4): timer limits, call concurrency, event feedback loops, and other mJS gotchas discovered during development.
 
 ---
 
 ### 09 — Phase Plan
 `09-phase-plan.md`
 
-How to get from docs to a working system. Three phases: prove the unknowns (test RPC handlers and timezone API on the device), build the device side (Adafruit IO setup → mJS script, incremental), build the phone side (Android app → HTML fallback). Each phase has a gate with explicit pass criteria. Includes an incremental test matrix for each stage and a risk-adjusted time estimate (~2–3 weeks realistic).
+How to get from docs to a working system. Five phases: prove the unknowns (Phase 1 — DONE), build the device side (Phase 2 — DONE), build the phone side (Phase 3 — DONE), UI polish (Phase 4 — future), testing and quality (Phase 5 — future). Each phase has a gate with explicit pass criteria. Includes an incremental test matrix for each stage and a risk-adjusted time estimate.
 
-**Key content:** Phase 1 blockers (§ tasks 1.1, 1.2), stage 2B incremental build order with 13 test steps, stage 3A app build order with 12 test steps, parallelism notes, time estimates.
+**Key content:** Phase 1 blockers (§ tasks 1.1, 1.2), stage 2B incremental build order with 13 test steps, stage 3A app build order with 12 test steps, Phase 4 UI improvements, Phase 5 testing and doc cleanup tasks.
 
 ---
 
@@ -121,13 +129,13 @@ Single **public** GitHub repo structure. Covers: directory layout (`docs/`, `dev
 
 For someone new to the project: **00 → 01 → 02 → 03 → 04 → 05 → 06 → 07 → 08 → 09 → 10**
 
-For implementation: **10 (set up repo) → 08 (review blockers) → 09 (follow the phase plan) → 04 §6 (validation tests) → 05 (write mJS script) → 06 (build Android app) → 07 (deploy)**
+For implementation reference: **10 (repo structure) → 08 (investigations and lessons learned) → 09 (phase plan) → 05 (device script) → 06 (Android app) → 07 (deployment)**
 
 ---
 
 ## Decision log
 
-Decisions are numbered within each document. A consolidation pass (doc 08 §3.1) is pending.
+Decisions are numbered within each document. A consolidation pass (doc 08 §3.1) is deferred to Phase 5.
 
 | Doc | Range | Topic |
 |---|---|---|

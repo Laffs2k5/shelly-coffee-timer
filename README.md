@@ -1,38 +1,52 @@
 # Shelly Coffee Timer
 
-A lightweight home-automation project that turns a **Shelly Plug S Gen3** into a timed coffee-maker controller. The Shelly runs a small mJS script (state machine) that accepts commands via MQTT through **Adafruit IO**, controllable from an Android app or a self-contained web page.
+A safety-first home-automation project that turns a **Shelly Plug S Gen3** into a timed coffee-maker controller. Every on-state is a countdown timer — the plug can never be left on indefinitely. The device runs autonomously with an mJS state machine, accepts commands via MQTT through **Adafruit IO**, and is controllable from an Android app, a web page, or curl.
 
-## Documentation
+**Live web control:** https://laffs2k5.github.io/shelly-coffee-timer/
 
-- **[Specification](docs/spec/INDEX.md)** — architecture decisions, message formats, state machine design, and phase plan.
-- **[docs/](docs/)** — operational and development documentation (grows over time).
+**Specification docs:** [docs/spec/INDEX.md](docs/spec/INDEX.md)
 
-## Quick start
+## Hardware
 
-1. Clone the repo
-2. `cp .env.example .env` and fill in your Adafruit IO username, key, and Shelly IP
-3. `source .env`
-4. Run `scripts/setup-feeds.sh` to create Adafruit IO feeds
-5. Run `scripts/test-rest.sh` to verify connectivity
-6. Configure the Shelly's MQTT (see [doc 04](docs/spec/04-adafruit-io.md) §4.1)
-7. Paste `device/coffee.js` into the Shelly web UI
-8. Open `app/` in Android Studio, build, and sideload the APK
-9. Optionally deploy `web/index.html` to GitHub Pages
-
-> **Credentials:** All secrets live in `.env` which is gitignored. Never commit real API keys — this repo is public. See [doc 10 §7](docs/spec/10-repo-spec.md) for details.
+- **Shelly Plug S Gen3** — smart plug with mJS scripting, MQTT, and local HTTP
+- **Any drip coffee maker** with a physical on/off switch (left in the "on" position; the plug controls power)
 
 ## Repo structure
 
 ```
 shelly-coffee-timer/
-├── docs/spec/     Specification documents (00–10)
-├── device/        mJS script for the Shelly
-├── app/           Android Studio project (Kotlin/Compose)
-├── web/           HTML fallback control page
-└── scripts/       Bash utility scripts
+├── app/               Android app (Kotlin/Compose)
+├── device/            mJS script for the Shelly (coffee.js)
+├── web/               HTML control page (GitHub Pages)
+├── scripts/           Bash utilities (feed setup, REST/MQTT testing)
+├── docs/spec/         Specification documents (00–10 + INDEX)
+├── .github/workflows/ GitHub Pages deployment
+├── .env.example       Template for credentials
+└── CLAUDE.md          AI assistant context
 ```
 
-## Hardware
+## Quick start
 
-- Shelly Plug S Gen3
-- Any drip coffee maker with a physical on/off switch
+### Device setup
+
+1. `cp .env.example .env` and fill in your Adafruit IO username, key, and Shelly IP
+2. `source .env`
+3. Run `scripts/setup-feeds.sh` to create the Adafruit IO feeds
+4. Run `scripts/test-rest.sh` to verify connectivity
+5. Configure the Shelly's MQTT settings (see [doc 04](docs/spec/04-adafruit-io.md) §4.1)
+6. Paste `device/coffee.js` into the Shelly web UI script editor
+
+### Android app
+
+1. Open `app/` in Android Studio
+2. Build and sideload the APK to your phone
+3. Open Settings in the app and enter your Shelly IP, Adafruit IO username, and key
+
+### Web control
+
+- Visit https://laffs2k5.github.io/shelly-coffee-timer/ and enter your Adafruit IO credentials
+- Or open `web/index.html` locally in a browser
+
+## Credentials
+
+All secrets live in `.env`, which is gitignored. **This repo is public — never commit real API keys.** See [doc 10 §7](docs/spec/10-repo-spec.md) for the full credentials policy.

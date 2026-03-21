@@ -2,11 +2,11 @@
 
 ## Overview
 
-Three phases, each producing something independently testable. Each phase has a gate — a set of conditions that must be met before moving to the next. No phase requires the next one to be useful.
+Five phases, each producing something independently testable. Each phase has a gate — a set of conditions that must be met before moving to the next. No phase requires the next one to be useful.
 
 ---
 
-## Phase 1: Prove the unknowns
+## Phase 1: Prove the unknowns — DONE
 
 **Goal:** Confirm the two high-risk assumptions from doc 08 before writing any production code.
 
@@ -22,16 +22,16 @@ Three phases, each producing something independently testable. Each phase has a 
 | 1.2 | ~~Test timezone-aware local time~~ | ~~Configure timezone via `Sys.SetConfig`~~ | DONE — `new Date().getHours()/getMinutes()` returns local time, DST-aware. Timezone set to `Europe/Oslo`. |
 | 1.3 | ~~Decide on alternatives~~ | ~~Evaluate alternatives if needed~~ | DONE — `HTTPServer.registerEndpoint()` adopted. URLs: `/script/1/coffee_command`, `/script/1/coffee_status`. Docs 05, 06, 08 updated. |
 
-### Gate: Phase 1 → Phase 2
+### Gate: Phase 1 → Phase 2 — PASSED
 
-- Custom RPC handlers work, OR an alternative local HTTP mechanism is identified
-- Local time is available from the firmware, OR a UTC offset workaround is designed
-- Doc 08 items 2.1 and 2.2 updated with findings
-- If architecture changes are needed, affected docs (05, 06) updated before proceeding
+- ~~Custom RPC handlers work, OR an alternative local HTTP mechanism is identified~~ — DONE: `HTTPServer.registerEndpoint()` adopted
+- ~~Local time is available from the firmware, OR a UTC offset workaround is designed~~ — DONE: `new Date()` returns local time, DST-aware
+- ~~Doc 08 items 2.1 and 2.2 updated with findings~~ — DONE
+- ~~If architecture changes are needed, affected docs (05, 06) updated before proceeding~~ — DONE
 
 ---
 
-## Phase 2: Device side
+## Phase 2: Device side — DONE
 
 **Goal:** A working Shelly with the full mJS script, controllable via physical button, local HTTP (curl), and remote MQTT, reporting status via heartbeat.
 
@@ -71,17 +71,18 @@ Build the script from doc 05, adding one capability at a time. Test each before 
 | 2B.12 | Heartbeat debounce | Rapidly send 3 commands | Only 1-2 heartbeats published, not 3 |
 | 2B.13 | Full integration test | Morning schedule scenario from doc 05 §13.1 | Schedule fires, extend works, timer expires, all heartbeats correct |
 
-### Gate: Phase 2 → Phase 3
+### Gate: Phase 2 → Phase 3 — PASSED
 
-- All 2B tests pass
-- Device controllable via curl (local) and via Adafruit IO REST (remote)
-- Heartbeat correctly reflects device state
-- Script runs stable for 24+ hours without crashes
-- mJS script committed to git repo
+- ~~All 2B tests pass~~ — DONE
+- ~~Device controllable via curl (local) and via Adafruit IO REST (remote)~~ — DONE
+- ~~Heartbeat correctly reflects device state~~ — DONE
+- ~~Script runs stable for 24+ hours without crashes~~ — DONE
+- ~~mJS script committed to git repo~~ — DONE
+- Implementation lessons documented in doc 08 §4
 
 ---
 
-## Phase 3: Phone side
+## Phase 3: Phone side — DONE
 
 **Goal:** An Android app matching the mockup, with auto-detect local/remote, 10-second polling, and schedule configuration. Plus the HTML fallback page.
 
@@ -116,25 +117,73 @@ Build the script from doc 05, adding one capability at a time. Test each before 
 | 3B.4 | Auto-refresh | Leave open, change state from phone | Page updates within 10 seconds |
 | 3B.5 | Host on GitHub Pages | Push to repo, access via URL | Works from phone browser and laptop |
 
-### Gate: Phase 3 → Done
+### Gate: Phase 3 → Done — PASSED
 
-- Android app passes all 3A tests
-- HTML fallback passes all 3B tests
-- Full end-to-end: schedule set from app → schedule fires on device → app shows status → extend from app → timer expires → app shows off
-- App APK and HTML page committed to git repo
-- Doc 07 deployment steps verified against actual process
+- ~~Android app passes all 3A tests~~ — DONE
+- ~~HTML fallback passes all 3B tests~~ — DONE
+- ~~Full end-to-end: schedule set from app → schedule fires on device → app shows status → extend from app → timer expires → app shows off~~ — DONE
+- ~~App APK and HTML page committed to git repo~~ — DONE
+- ~~Doc 07 deployment steps verified against actual process~~ — DONE
+
+---
+
+## Phase 4: UI Polish — NOT STARTED
+
+**Goal:** Improve the user experience of both the Android app and web page. Future work.
+
+**Prerequisites:** Phase 3 complete.
+
+### Android app
+
+- Loading spinner during connection attempts and mode switches
+- Better layout and spacing
+- Dark theme refinements
+- Notification when coffee maker is currently on
+
+### HTML page
+
+- Visual improvements (styling, responsiveness)
+- Possibly add PWA support (offline caching, add-to-home-screen)
+
+### Both
+
+- Consistent look and feel between Android app and web page
+
+**Status:** NOT STARTED — future work.
+
+---
+
+## Phase 5: Testing & Quality — NOT STARTED
+
+**Goal:** Establish formal testing practices and clean up documentation debt. Future work.
+
+**Prerequisites:** Phase 3 complete (Phase 4 is independent — these can be done in either order).
+
+### Tasks
+
+| # | Task | Description |
+|---|---|---|
+| 5.1 | Manual regression test procedures | Document step-by-step test scripts for verifying all device, app, and web functionality |
+| 5.2 | Device API test scripts | Bash/curl scripts that exercise local HTTP and Adafruit IO REST endpoints programmatically |
+| 5.3 | AI-assisted test instructions | Prompts that an AI agent can execute to verify system functionality end-to-end |
+| 5.4 | Android app test suite | Unit tests for business logic, UI tests for Compose screens |
+| 5.5 | HTML page testing | Functional tests for the web control page |
+| 5.6 | End-to-end test scenarios | Full workflow tests: schedule fire, extend, expire, config change, multi-client |
+| 5.7 | Decision renumbering | Resolve doc 08 §3.1 — consolidate decision numbers across all spec docs |
+| 5.8 | Doc 00 open questions audit | Resolve doc 08 §3.2 — mark answered questions in doc 00 with cross-references |
+
+**Status:** NOT STARTED — future work.
 
 ---
 
 ## What can be done in parallel
 
-- **HTML fallback (3B)** can be built anytime after phase 2 — it only needs Adafruit IO REST, no local path
-- **Doc cleanup** (decision renumbering, doc 00 open questions audit from doc 08 §3) can happen anytime
-- **Repo setup** (doc 10) can happen before phase 1
+- **Phase 4 and Phase 5** are independent of each other
+- **Doc cleanup** (items 5.7 and 5.8) can be done anytime
 
 ---
 
-## Risk-adjusted time estimate
+## Risk-adjusted time estimate (Phases 1–3)
 
 | Phase | Optimistic | Realistic | If things go wrong |
 |---|---|---|---|
