@@ -99,6 +99,27 @@ scripts/setup-feeds.sh     # Create Adafruit IO feeds
 scripts/send-command.sh t90  # Send a test command
 ```
 
+## Development environment
+
+This project is developed on a **Windows ARM64 Surface laptop** running **WSL2 (Ubuntu, aarch64)**.
+
+### Build constraints
+- **Android APK cannot be built in WSL** — the Android SDK's `aapt2` is x86_64 only. Build on Windows via Android Studio or Gradle with Windows SDK.
+- The built APK lives at `C:\Users\peder\temp\shelly-coffee-app\build\outputs\apk\debug\` on Windows.
+- Install to phone: `/mnt/c/Users/peder/AppData/Local/Android/Sdk/platform-tools/adb.exe install -r <apk_path>`
+
+### Android emulator — does NOT work
+The x86_64 emulator can't run ARM64 AVDs (architecture mismatch), and x86_64 AVDs require hardware virtualization (unavailable on ARM). No Linux ARM64 emulator exists in the SDK. Test on a physical device.
+
+### WSL interop
+- Windows executables (`.exe`) can be called from WSL via binfmt_misc.
+- The `WSLInterop` binfmt handler can get unregistered. Re-register: `sudo sh -c 'echo ":WSLInterop:M::MZ::/init:PF" > /proc/sys/fs/binfmt_misc/register'`
+- `claude.exe` can be invoked from WSL for Windows-side tasks: use `-p "prompt"` and `--dangerously-skip-permissions` for non-interactive mode.
+- Background execution of Windows binaries via the Bash tool's `run_in_background` fails (exec format error). Must run in foreground.
+
+### Relay verification
+The user's laptop charger runs through the Shelly plug. Verify relay state: `cat /sys/class/power_supply/AC1/online` (1=on, 0=off).
+
 ## Spec docs reference
 
 Full specification: `docs/spec/INDEX.md`. Key docs by topic:
