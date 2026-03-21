@@ -64,10 +64,10 @@ publish heartbeat with ack = msg.c
 **Request:** HTTP GET to the Shelly's RPC endpoint. No JSON body — command is in the URL.
 
 ```
-GET /rpc/Coffee.Command?cmd=t90
-GET /rpc/Coffee.Command?cmd=ext
-GET /rpc/Coffee.Command?cmd=off
-GET /rpc/Coffee.Command?cmd=sub
+GET /script/1/coffee_command?cmd=t90
+GET /script/1/coffee_command?cmd=ext
+GET /script/1/coffee_command?cmd=off
+GET /script/1/coffee_command?cmd=sub
 ```
 
 **Response:** JSON.
@@ -96,7 +96,7 @@ No timestamp needed — local commands are synchronous. No staleness check.
 **Request:**
 
 ```
-GET /rpc/Coffee.Status
+GET /script/1/coffee_status
 ```
 
 **Response:**

@@ -89,8 +89,8 @@ Keeping it running. Covers: initial deployment steps, script update process (man
 
 What must be validated before implementation. Five items ordered by risk:
 
-1. **[HIGH]** `Shelly.addRPCHandler()` — does it exist? Blocks local HTTP control.
-2. **[HIGH]** Timezone-aware local time in mJS — needed for schedule checker.
+1. ~~**[HIGH]** `Shelly.addRPCHandler()`~~ — RESOLVED: does not exist. Use `HTTPServer.registerEndpoint()`.
+2. ~~**[HIGH]** Timezone-aware local time in mJS~~ — RESOLVED: `new Date().getHours()/getMinutes()` works, DST-aware.
 3. **[MEDIUM]** First-ever boot with empty feeds — verify `/get` on empty feed doesn't crash.
 4. **[MEDIUM]** Stale remote status after command — UX decision for the Android app.
 5. **[LOW]** Multi-phone config version race — accepted limitation, documented.

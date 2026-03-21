@@ -18,9 +18,9 @@ Three phases, each producing something independently testable. Each phase has a 
 
 | # | Task | How | Success criteria |
 |---|---|---|---|
-| 1.1 | Test `Shelly.addRPCHandler()` | Upload a minimal test script via web UI that registers a custom RPC handler. Call it via browser: `http://<ip>/rpc/Coffee.Test` | HTTP response contains the JSON your handler returned |
-| 1.2 | Test timezone-aware local time | Configure timezone via `Sys.SetConfig`. Print `Shelly.getComponentStatus("sys")` from a script. Inspect the output. | Can extract current local hour and minute from the API |
-| 1.3 | Decide on alternatives (if needed) | If 1.1 or 1.2 fail, evaluate alternatives per doc 08 §2.1 and §2.2 | A workable alternative identified and documented |
+| 1.1 | ~~Test `Shelly.addRPCHandler()`~~ | ~~Upload a minimal test script via web UI~~ | DONE — does not exist. Use `HTTPServer.registerEndpoint()`. Tested on firmware 1.7.5. |
+| 1.2 | ~~Test timezone-aware local time~~ | ~~Configure timezone via `Sys.SetConfig`~~ | DONE — `new Date().getHours()/getMinutes()` returns local time, DST-aware. Timezone set to `Europe/Oslo`. |
+| 1.3 | ~~Decide on alternatives~~ | ~~Evaluate alternatives if needed~~ | DONE — `HTTPServer.registerEndpoint()` adopted. URLs: `/script/1/coffee_command`, `/script/1/coffee_status`. Docs 05, 06, 08 updated. |
 
 ### Gate: Phase 1 → Phase 2
 
@@ -65,8 +65,8 @@ Build the script from doc 05, adding one capability at a time. Test each before 
 | 2B.6 | Config handler + `/get` on connect | Post config via REST, reboot device | Device loads config from `/get`, console shows new values |
 | 2B.7 | KVS persistence | Change config, reboot without internet | Device uses cached config from KVS |
 | 2B.8 | Schedule checker | Set schedule for 2 minutes from now, wait | Schedule fires, switch turns on, schedule auto-disarms |
-| 2B.9 | Local HTTP: Coffee.Status | `curl http://<ip>/rpc/Coffee.Status` | JSON response with current state |
-| 2B.10 | Local HTTP: Coffee.Command | `curl http://<ip>/rpc/Coffee.Command?cmd=t90` | Switch turns on, JSON response confirms |
+| 2B.9 | Local HTTP: coffee_status | `curl http://<ip>/script/1/coffee_status` | JSON response with current state |
+| 2B.10 | Local HTTP: coffee_command | `curl http://<ip>/script/1/coffee_command?cmd=t90` | Switch turns on, JSON response confirms |
 | 2B.11 | NTP guard | Reboot, send MQTT command before NTP syncs | Command rejected until NTP syncs |
 | 2B.12 | Heartbeat debounce | Rapidly send 3 commands | Only 1-2 heartbeats published, not 3 |
 | 2B.13 | Full integration test | Morning schedule scenario from doc 05 §13.1 | Schedule fires, extend works, timer expires, all heartbeats correct |
