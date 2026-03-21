@@ -228,23 +228,46 @@ object CoffeeApi {
 
     // --- Auto-detect: local first, then remote ---
 
+    // Track last successful mode to optimize poll order
+    private var lastMode = ConnectionMode.OFFLINE
+    private var localFailCount = 0
+
     fun pollStatus(shellyIp: String, user: String, key: String): StatusResult {
-        // Try local first
-        if (shellyIp.isNotBlank()) {
+        // If last mode was remote, try remote first (avoid 2s local timeout)
+        // Still try local every 6th poll (~60s) to detect coming home
+        val tryLocalFirst = lastMode != ConnectionMode.REMOTE || localFailCount >= 6
+
+        if (tryLocalFirst && shellyIp.isNotBlank()) {
             val local = fetchLocalStatus(shellyIp)
             if (local != null) {
+                lastMode = ConnectionMode.LOCAL
+                localFailCount = 0
                 return StatusResult(local, ConnectionMode.LOCAL)
             }
+            localFailCount++
         }
 
-        // Fall back to remote
+        // Try remote
         if (user.isNotBlank() && key.isNotBlank()) {
             val remote = fetchRemoteStatus(user, key)
             if (remote != null) {
+                lastMode = ConnectionMode.REMOTE
                 return StatusResult(remote, ConnectionMode.REMOTE)
             }
         }
 
+        // If we skipped local above, try it now as last resort
+        if (!tryLocalFirst && shellyIp.isNotBlank()) {
+            val local = fetchLocalStatus(shellyIp)
+            if (local != null) {
+                lastMode = ConnectionMode.LOCAL
+                localFailCount = 0
+                return StatusResult(local, ConnectionMode.LOCAL)
+            }
+            localFailCount++
+        }
+
+        lastMode = ConnectionMode.OFFLINE
         return StatusResult(null, ConnectionMode.OFFLINE)
     }
 
