@@ -538,14 +538,7 @@ body {
         setStatus("OFF", "status-off");
       }
 
-      // Mode tag
-      let modeText = "";
-      if (val.mode === "sch") modeText = "scheduled";
-      else if (val.mode === "man") modeText = "manual";
-      if (modeText) {
-        document.getElementById("status").innerHTML +=
-          ' <span class="mode-tag">' + modeText + '</span>';
-      }
+      // Mode tag removed — was confusing alongside connection status
 
       // Ack
       if (val.ack) {
@@ -566,7 +559,7 @@ body {
         document.getElementById("schM").value = String(val.m).padStart(2, "0");
       }
 
-      setConn(true, "Remote (Adafruit IO)");
+      setConn(true, "Internet");
     } catch (e) {
       setStatus("Unknown -- cannot reach Adafruit IO", "status-error");
       setAck("");
