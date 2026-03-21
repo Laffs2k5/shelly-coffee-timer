@@ -361,14 +361,6 @@ fun MainScreen(onNavigateToSettings: () -> Unit) {
                                 fontSize = 20.sp,
                                 color = MaterialTheme.colorScheme.secondary,
                             )
-                            if (status?.mode?.isNotBlank() == true) {
-                                Spacer(modifier = Modifier.height(4.dp))
-                                Text(
-                                    text = "Mode: ${status!!.mode}",
-                                    fontSize = 13.sp,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                )
-                            }
                         }
                         else -> {
                             Text(
@@ -381,14 +373,6 @@ fun MainScreen(onNavigateToSettings: () -> Unit) {
                                 fontSize = 22.sp,
                                 color = Color(0xFF777777),
                             )
-                            if (status?.mode?.isNotBlank() == true) {
-                                Spacer(modifier = Modifier.height(4.dp))
-                                Text(
-                                    text = "Mode: ${status!!.mode}",
-                                    fontSize = 13.sp,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                )
-                            }
                         }
                     }
 
@@ -473,11 +457,8 @@ fun MainScreen(onNavigateToSettings: () -> Unit) {
 
             // --- Connection (subtle) ---
             val (connText, connColor) = when (connectionMode) {
-                CoffeeApi.ConnectionMode.LOCAL -> {
-                    val ip = prefs.getString("shelly_ip", "") ?: ""
-                    "Local ($ip)" to Color(0xFF4CAF50)
-                }
-                CoffeeApi.ConnectionMode.REMOTE -> "Remote (Adafruit IO)" to Color(0xFFFFC107)
+                CoffeeApi.ConnectionMode.LOCAL -> "Wi-Fi" to Color(0xFF4CAF50)
+                CoffeeApi.ConnectionMode.REMOTE -> "Internet" to Color(0xFFFFC107)
                 CoffeeApi.ConnectionMode.OFFLINE -> "Offline" to Color(0xFFEF5350)
             }
 
