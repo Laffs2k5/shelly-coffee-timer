@@ -522,7 +522,7 @@ body {
     document.getElementById("connText").textContent = text;
     if (ok) {
       document.getElementById("lastUpdate").textContent =
-        "Updated " + new Date().toLocaleTimeString();
+        "Updated " + new Date().toLocaleTimeString([], {hour12: false});
     }
   }
 
@@ -560,10 +560,10 @@ body {
         document.getElementById("schToggle").checked = val.sch === 1;
       }
       if (typeof val.h !== "undefined") {
-        document.getElementById("schH").value = val.h;
+        document.getElementById("schH").value = String(val.h).padStart(2, "0");
       }
       if (typeof val.m !== "undefined") {
-        document.getElementById("schM").value = val.m;
+        document.getElementById("schM").value = String(val.m).padStart(2, "0");
       }
 
       setConn(true, "Remote (Adafruit IO)");
@@ -599,10 +599,10 @@ body {
         document.getElementById("schToggle").checked = currentConfig.sch === 1;
       }
       if (typeof currentConfig.h !== "undefined") {
-        document.getElementById("schH").value = currentConfig.h;
+        document.getElementById("schH").value = String(currentConfig.h).padStart(2, "0");
       }
       if (typeof currentConfig.m !== "undefined") {
-        document.getElementById("schM").value = currentConfig.m;
+        document.getElementById("schM").value = String(currentConfig.m).padStart(2, "0");
       }
     } catch (e) {
       // Config feed might not exist yet; ignore
