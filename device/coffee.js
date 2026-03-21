@@ -32,6 +32,9 @@ let hb_last_ts = 0;
 let hb_elapsed = 0;
 let mqtt_init_done = false;
 
+// Flag to distinguish script-initiated switch changes from physical button
+let script_switching = false;
+
 // Helper: get unix timestamp
 function get_unixtime() {
   let s = Shelly.getComponentStatus("sys");
@@ -57,7 +60,10 @@ function turn_on(duration_min, new_mode) {
   remain = duration_min * 60;
   mode = new_mode;
   sw_on = true;
-  Shelly.call("Switch.Set", {id: 0, on: true});
+  script_switching = true;
+  Shelly.call("Switch.Set", {id: 0, on: true}, function() {
+    script_switching = false;
+  });
 }
 
 // Core: turn off
@@ -65,7 +71,10 @@ function turn_off() {
   remain = 0;
   mode = "";
   sw_on = false;
-  Shelly.call("Switch.Set", {id: 0, on: false});
+  script_switching = true;
+  Shelly.call("Switch.Set", {id: 0, on: false}, function() {
+    script_switching = false;
+  });
 }
 
 // Core: execute command
@@ -250,7 +259,10 @@ function main_loop() {
 // Boot complete: set up everything
 function boot_complete() {
   // Force switch OFF on boot (safety)
-  Shelly.call("Switch.Set", {id: 0, on: false});
+  script_switching = true;
+  Shelly.call("Switch.Set", {id: 0, on: false}, function() {
+    script_switching = false;
+  });
 
   // MQTT subscriptions
   MQTT.subscribe(TOPIC_CMD, on_mqtt_command);
@@ -259,8 +271,9 @@ function boot_complete() {
   // Single main loop timer
   Timer.set(30000, true, main_loop);
 
-  // Status handler: NTP sync + MQTT connect
+  // Combined status handler: NTP sync, MQTT connect, physical button
   Shelly.addStatusHandler(function(event) {
+    // NTP sync detection
     if (event.component === "sys") {
       if (event.delta && typeof event.delta.unixtime === "number") {
         if (event.delta.unixtime > 1700000000) {
@@ -268,28 +281,31 @@ function boot_complete() {
         }
       }
     }
+    // MQTT connect
     if (event.component === "mqtt") {
       if (event.delta && event.delta.connected === true) {
         on_mqtt_connect();
       }
     }
-  });
-
-  // Button handler - only respond to physical button events
-  // toggle events fire for ALL state changes (including Switch.Set calls)
-  // single_push is the physical button event on Plug S Gen3
-  Shelly.addEventHandler(function(event) {
+    // Physical button detection
+    // The Plug S Gen3 has no separate Input component; the button toggles
+    // the switch directly in firmware. We use script_switching flag to
+    // distinguish our Switch.Set calls from physical button presses.
     if (event.component === "switch:0") {
-      if (typeof event.info === "object" && event.info !== null) {
-        if (event.info.event === "single_push" || event.info.event === "btn_down") {
-          if (sw_on) {
-            turn_off();
-          } else {
-            turn_on(cfg_dur, "manual");
-          }
-          last_ack = "btn";
-          publish_heartbeat();
+      if (event.delta && typeof event.delta.output !== "undefined") {
+        if (script_switching) return;
+        // Physical button was pressed - firmware already toggled the switch
+        if (event.delta.output) {
+          remain = cfg_dur * 60;
+          mode = "manual";
+          sw_on = true;
+        } else {
+          remain = 0;
+          mode = "";
+          sw_on = false;
         }
+        last_ack = "btn";
+        publish_heartbeat();
       }
     }
   });
