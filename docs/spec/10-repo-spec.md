@@ -2,10 +2,10 @@
 
 ## 1. Repository
 
-Single private repository. Docs and code live together — the docs describe the code, the code implements the docs.
+Single **public** repository. Docs and code live together — the docs describe the code, the code implements the docs. No real credentials may be committed.
 
-- **Name:** `shelly-coffee` (or similar)
-- **Visibility:** Private (AIO key may appear in config files or the HTML fallback)
+- **Name:** `shelly-coffee-timer`
+- **Visibility:** **Public** — no credentials may appear in any committed file
 - **Host:** GitHub
 
 ---
@@ -100,7 +100,7 @@ Bash scripts wrapping the curl commands from doc 04 §6 and doc 03 §6. These ar
 - `test-rest.sh` — runs the REST round-trip test
 - `send-command.sh t90` — sends a command to the command feed (quick testing)
 
-All scripts read credentials from environment variables (`AIO_USER`, `AIO_KEY`, `SHELLY_IP`), not hardcoded.
+All scripts read credentials from environment variables (`AIO_USER`, `AIO_KEY`, `SHELLY_IP`), loaded from a local `.env` file that is **gitignored**. See §7 for details.
 
 ---
 
@@ -167,20 +167,40 @@ This is a single-person project. Keep it simple:
 
 ## 7. Credentials handling
 
-| Credential | Where it lives | In the repo? |
-|---|---|---|
-| Adafruit IO username | `scripts/*.sh` (via `$AIO_USER` env var), Android app SharedPreferences, `web/index.html` (if hardcoded) | No (env var in scripts). Possibly in `web/index.html` — repo is private. |
-| Adafruit IO key | Same locations as username | Same handling. Never in committed scripts. |
-| Shelly local IP | Android app SharedPreferences, `scripts/*.sh` (via `$SHELLY_IP` env var) | No (env var in scripts) |
-| Shelly MQTT password | On-device only (set via `Mqtt.SetConfig`, redacted in `Mqtt.GetConfig`) | No |
+> **This repo is public.** No real credentials, API keys, or device IPs may appear in any committed file — not in scripts, not in HTML, not in docs. All secrets live in local gitignored files.
 
-The scripts directory should include a `README.md` or comments explaining which environment variables to set:
+### 7.1 The `.env` file
+
+All credentials are stored in a single **`.env`** file in the repo root. This file is **gitignored** (matched by the `*.env` pattern). A committed **`.env.example`** template shows the required variables with placeholder values:
 
 ```bash
-export AIO_USER="your_username"
-export AIO_KEY="your_aio_key"
-export SHELLY_IP="192.168.1.xxx"
+# Copy to .env, fill in real values, then: source .env
+AIO_USER="your_adafruit_io_username"
+AIO_KEY="your_adafruit_io_key"
+SHELLY_IP="192.168.1.xxx"
 ```
+
+Scripts should `source .env` (or expect the variables to be already exported) before making any API calls. Never inline real credentials in a script.
+
+### 7.2 Credential locations
+
+| Credential | Where it lives | In the repo? |
+|---|---|---|
+| Adafruit IO username | `.env` file → env var `$AIO_USER`, Android app SharedPreferences, `web/index.html` via `localStorage` prompt | **No** — `.env` is gitignored. `web/index.html` must prompt or use `localStorage`, never hardcode. |
+| Adafruit IO key | `.env` file → env var `$AIO_KEY`, Android app SharedPreferences, `web/index.html` via `localStorage` prompt | **No** — same as above. |
+| Shelly local IP | `.env` file → env var `$SHELLY_IP`, Android app SharedPreferences | **No** — `.env` is gitignored. |
+| Shelly MQTT password | On-device only (set via `Mqtt.SetConfig`, redacted in `Mqtt.GetConfig`) | **No** |
+
+### 7.3 Gitignore safety net
+
+The `.gitignore` includes two patterns that catch credential files:
+
+```
+*.env          # matches .env, production.env, etc.
+secrets.*      # matches secrets.json, secrets.txt, etc.
+```
+
+**Rule:** never store credentials in a file whose name is not covered by these patterns. If you add a new credential file, add a matching gitignore pattern first.
 
 ---
 
@@ -189,8 +209,9 @@ export SHELLY_IP="192.168.1.xxx"
 To go from a fresh clone to a working repo:
 
 1. Clone the repo
-2. Set environment variables (`AIO_USER`, `AIO_KEY`, `SHELLY_IP`)
-3. Run `scripts/setup-feeds.sh` to create Adafruit IO feeds
+2. `cp .env.example .env` and fill in your real Adafruit IO username, key, and Shelly IP
+3. `source .env`
+4. Run `scripts/setup-feeds.sh` to create Adafruit IO feeds
 4. Run `scripts/test-rest.sh` to verify connectivity
 5. Configure the Shelly's MQTT (doc 04 §4.1)
 6. Paste `device/coffee.js` into the Shelly web UI

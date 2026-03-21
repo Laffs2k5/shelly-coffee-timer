@@ -34,8 +34,7 @@ Data retention of 30 days is irrelevant for our use case — we only care about 
 Feed creation can be done via the web UI (Feeds → New Feed) or via REST API:
 
 ```bash
-AIO_USER="your_username"
-AIO_KEY="your_aio_key"
+# Requires: source .env (see .env.example in repo root)
 
 for feed in command config heartbeat; do
   curl -s -X POST "https://io.adafruit.com/api/v2/${AIO_USER}/feeds" \
@@ -328,8 +327,7 @@ These tests should be run once during initial setup to confirm the architecture 
 **Goal:** Confirm feeds are accessible and data format works.
 
 ```bash
-AIO_USER="your_username"
-AIO_KEY="your_aio_key"
+# Requires: source .env (see .env.example in repo root)
 
 # Write a test value to the heartbeat feed
 curl -s -X POST "https://io.adafruit.com/api/v2/${AIO_USER}/feeds/heartbeat/data" \
@@ -349,8 +347,7 @@ curl -s "https://io.adafruit.com/api/v2/${AIO_USER}/feeds/heartbeat/data/last" \
 **Goal:** Confirm MQTT TLS connection works with Adafruit IO credentials.
 
 ```bash
-AIO_USER="your_username"
-AIO_KEY="your_aio_key"
+# Requires: source .env (see .env.example in repo root)
 
 # Terminal 1: Subscribe to command feed
 mosquitto_sub -h io.adafruit.com -p 8883 \
@@ -373,8 +370,7 @@ mosquitto_pub -h io.adafruit.com -p 8883 \
 **Goal:** Confirm the retain-replacement mechanism works.
 
 ```bash
-AIO_USER="your_username"
-AIO_KEY="your_aio_key"
+# Requires: source .env (see .env.example in repo root)
 
 # First, publish a config value via REST (so there's data in the feed)
 curl -s -X POST "https://io.adafruit.com/api/v2/${AIO_USER}/feeds/config/data" \
@@ -576,7 +572,8 @@ If the key is compromised or needs to be rotated:
 3. Update the Shelly via local HTTP:
 
 ```bash
-SHELLY="192.168.1.xxx"
+# Use values from .env, or set manually for a one-off rotation:
+# SHELLY_IP is already in .env; NEW_KEY is the freshly regenerated key.
 NEW_KEY="new_aio_key_here"
 
 curl -X POST -d "{
@@ -587,9 +584,9 @@ curl -X POST -d "{
       \"pass\": \"${NEW_KEY}\"
     }
   }
-}" http://${SHELLY}/rpc
+}" http://${SHELLY_IP}/rpc
 
-curl -X POST -d '{"id":1, "method":"Shelly.Reboot"}' http://${SHELLY}/rpc
+curl -X POST -d '{"id":1, "method":"Shelly.Reboot"}' http://${SHELLY_IP}/rpc
 ```
 
 This requires the phone/computer to be on the same wifi as the Shelly. There is no way to remotely rotate the Shelly's MQTT credentials — once the old key is invalidated, the device loses MQTT connectivity until reconfigured locally.
@@ -601,7 +598,7 @@ The AIO key appears in:
 - Phone-side Android app settings, curl commands
 - Adafruit IO dashboard URLs (if using query parameter auth — avoid this)
 
-**Mitigation:** Always use the `X-AIO-Key` header for REST calls, never the URL query parameter. Keep the key out of version control.
+**Mitigation:** Always use the `X-AIO-Key` header for REST calls, never the URL query parameter. Keep the key out of version control — all credentials live in the gitignored `.env` file (see §7 of doc 10).
 
 ---
 

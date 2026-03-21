@@ -10,13 +10,16 @@ A lightweight home-automation project that turns a **Shelly Plug S Gen3** into a
 ## Quick start
 
 1. Clone the repo
-2. Set environment variables: `AIO_USER`, `AIO_KEY`, `SHELLY_IP`
-3. Run `scripts/setup-feeds.sh` to create Adafruit IO feeds
-4. Run `scripts/test-rest.sh` to verify connectivity
-5. Configure the Shelly's MQTT (see [doc 04](docs/spec/04-adafruit-io.md) §4.1)
-6. Paste `device/coffee.js` into the Shelly web UI
-7. Open `app/` in Android Studio, build, and sideload the APK
-8. Optionally deploy `web/index.html` to GitHub Pages
+2. `cp .env.example .env` and fill in your Adafruit IO username, key, and Shelly IP
+3. `source .env`
+4. Run `scripts/setup-feeds.sh` to create Adafruit IO feeds
+5. Run `scripts/test-rest.sh` to verify connectivity
+6. Configure the Shelly's MQTT (see [doc 04](docs/spec/04-adafruit-io.md) §4.1)
+7. Paste `device/coffee.js` into the Shelly web UI
+8. Open `app/` in Android Studio, build, and sideload the APK
+9. Optionally deploy `web/index.html` to GitHub Pages
+
+> **Credentials:** All secrets live in `.env` which is gitignored. Never commit real API keys — this repo is public. See [doc 10 §7](docs/spec/10-repo-spec.md) for details.
 
 ## Repo structure
 

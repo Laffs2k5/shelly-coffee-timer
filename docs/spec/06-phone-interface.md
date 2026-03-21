@@ -246,13 +246,13 @@ A single static HTML file that provides the same controls via Adafruit IO REST o
 
 A self-contained `.html` file with inline CSS and JavaScript. No build tools, no frameworks. Opens in any browser. Uses `fetch()` to call Adafruit IO REST API.
 
-Configuration: AIO username and key are either hardcoded in the file (private repo) or entered into a settings form that saves to `localStorage`.
+Configuration: AIO username and key are **never hardcoded** in the file (the repo is public). The page must prompt the user on first load and save to `localStorage`.
 
 ### 6.3 Hosting options
 
 | Option | Pros | Cons |
 |---|---|---|
-| GitHub Pages (private repo) | Free HTTPS, accessible everywhere, version controlled | Credentials in repo (private repo mitigates) |
+| GitHub Pages | Free HTTPS, accessible everywhere, version controlled | Credentials must be entered at runtime (stored in `localStorage`) — repo is public |
 | Open directly as local file | No hosting needed | `file://` may have fetch restrictions in some browsers |
 | Any static web server | Full control | Need a server |
 

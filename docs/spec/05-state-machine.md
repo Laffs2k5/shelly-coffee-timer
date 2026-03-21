@@ -39,7 +39,7 @@ These are stored in the Shelly's Key-Value Store and loaded on boot. They repres
 
 | Name | Value | Source |
 |---|---|---|
-| `AIO_USER` | `"your_username"` | Hardcoded (matches MQTT auth) |
+| `AIO_USER` | `"your_username"` | Hardcoded on-device (matches MQTT auth). **Do not commit real value to repo** — use placeholder in committed code, replace when pasting to device. |
 | `TOPIC_CMD` | `AIO_USER + "/f/command"` | Adafruit IO command feed |
 | `TOPIC_CFG` | `AIO_USER + "/f/config"` | Adafruit IO config feed |
 | `TOPIC_HB` | `AIO_USER + "/f/heartbeat"` | Adafruit IO heartbeat feed |

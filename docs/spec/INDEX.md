@@ -111,7 +111,7 @@ How to get from docs to a working system. Three phases: prove the unknowns (test
 ### 10 — Repository Specification
 `10-repo-spec.md`
 
-Single private GitHub repo structure. Covers: directory layout (`docs/`, `device/`, `app/`, `web/`, `scripts/`), file purposes, doc filename mapping (long authoring names → short repo names), `.gitignore`, branching approach (commit to main, branches for experiments), credentials handling (env vars, never committed), and the setup sequence from fresh clone to working system.
+Single **public** GitHub repo structure. Covers: directory layout (`docs/`, `device/`, `app/`, `web/`, `scripts/`), file purposes, doc filename mapping (long authoring names → short repo names), `.gitignore`, branching approach (commit to main, branches for experiments), credentials handling (gitignored `.env` file, never committed), and the setup sequence from fresh clone to working system.
 
 **Key content:** Directory tree (§2), credentials handling rules (§7), setup sequence (§8).
 
