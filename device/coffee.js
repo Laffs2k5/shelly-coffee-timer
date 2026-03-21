@@ -103,10 +103,17 @@ function execute_command(cmd) {
 }
 
 // Heartbeat publish with 2-second debounce
-function do_publish_heartbeat() {
+// force=true bypasses debounce (used for state transitions)
+let hb_pending = false;
+
+function do_publish_heartbeat(force) {
   if (!ntp_synced) return;
   let now = get_unixtime();
-  if (now - hb_last_ts < 2) return;
+  if (!force && now - hb_last_ts < 2) {
+    hb_pending = true;
+    return;
+  }
+  hb_pending = false;
   hb_last_ts = now;
   let st = "off";
   if (sw_on) st = "on";
@@ -126,7 +133,11 @@ function do_publish_heartbeat() {
 }
 
 function publish_heartbeat() {
-  do_publish_heartbeat();
+  do_publish_heartbeat(false);
+}
+
+function publish_heartbeat_force() {
+  do_publish_heartbeat(true);
 }
 
 // MQTT command handler
@@ -226,13 +237,12 @@ function main_loop() {
     }
   }
 
-  // Periodic heartbeat
+  // Flush any debounced heartbeat, or publish periodic
   hb_elapsed = hb_elapsed + 30;
   let hb_interval = 900;
   if (sw_on) hb_interval = 300;
-  if (hb_elapsed >= hb_interval) {
-    hb_elapsed = 0;
-    do_publish_heartbeat();
+  if (hb_pending || hb_elapsed >= hb_interval) {
+    do_publish_heartbeat(false);
   }
 
   // Schedule check
