@@ -4,84 +4,152 @@
 <meta charset="UTF-8">
 <title>Shelly Coffee Timer</title>
 <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
-<title>Coffee Timer</title>
 <style>
 * { box-sizing: border-box; margin: 0; padding: 0; }
 body {
   font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
   background: #1a1a1a;
   color: #e0e0e0;
-  padding: 12px;
+  padding: 16px;
   max-width: 480px;
   margin: 0 auto;
-}
-h2 {
-  font-size: 14px;
-  text-transform: uppercase;
-  letter-spacing: 1px;
-  color: #888;
-  border-bottom: 1px solid #333;
-  padding: 8px 0 4px;
-  margin: 16px 0 8px;
-}
-.status-line {
-  font-size: 20px;
-  font-weight: bold;
-  padding: 8px 0;
-}
-.status-on { color: #4caf50; }
-.status-off { color: #888; }
-.status-error { color: #f44336; }
-.mode-tag {
-  font-size: 12px;
-  font-weight: normal;
-  background: #333;
-  padding: 2px 8px;
-  border-radius: 4px;
-  margin-left: 8px;
-}
-.btn-row {
+  min-height: 100vh;
   display: flex;
+  flex-direction: column;
+}
+
+/* --- Cards --- */
+.card {
+  background: #2a2a2a;
+  border: 1px solid #444444;
+  border-radius: 12px;
+  padding: 16px;
+  margin-bottom: 12px;
+}
+
+/* --- Section headings --- */
+.card-title {
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 1.5px;
+  color: #90CAF9;
+  margin-bottom: 12px;
+  font-weight: 600;
+}
+
+/* --- Status display --- */
+.status-line {
+  font-size: 28px;
+  font-weight: 700;
+  padding: 8px 0 4px;
+  transition: color 0.4s ease, font-size 0.3s ease;
+}
+.status-on {
+  color: #4CAF50;
+  font-size: 32px;
+}
+.status-off {
+  color: #888888;
+  font-size: 24px;
+}
+.status-error {
+  color: #f44336;
+  font-size: 22px;
+}
+.mode-tag {
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  background: rgba(144, 202, 249, 0.15);
+  color: #90CAF9;
+  padding: 3px 10px;
+  border-radius: 12px;
+  margin-left: 8px;
+  vertical-align: middle;
+}
+.ack-line {
+  font-size: 13px;
+  color: #888888;
+  padding: 2px 0 8px;
+  min-height: 22px;
+}
+
+/* --- Buttons --- */
+.btn-row {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
   gap: 8px;
-  margin: 8px 0;
 }
 .btn {
-  flex: 1;
-  padding: 14px 0;
-  font-size: 18px;
-  font-weight: bold;
-  border: 1px solid #444;
-  border-radius: 6px;
-  background: #2a2a2a;
+  padding: 16px 0;
+  font-size: 16px;
+  font-weight: 700;
+  border: 1px solid #444444;
+  border-radius: 10px;
+  background: #333333;
   color: #e0e0e0;
   cursor: pointer;
   text-align: center;
   -webkit-tap-highlight-color: transparent;
   user-select: none;
+  transition: background 0.15s ease, border-color 0.15s ease, transform 0.1s ease;
+  min-height: 52px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
-.btn:active { background: #444; }
-.btn-off { border-color: #f44336; color: #f44336; }
-.btn-on { border-color: #4caf50; color: #4caf50; }
+.btn:hover {
+  background: #3a3a3a;
+}
+.btn:active {
+  background: #444444;
+  transform: scale(0.96);
+}
+.btn-off {
+  border-color: #888888;
+  color: #888888;
+}
+.btn-off:hover {
+  border-color: #999999;
+  background: rgba(136, 136, 136, 0.15);
+}
+.btn-on {
+  border-color: #4CAF50;
+  color: #4CAF50;
+}
+.btn-on:hover {
+  background: rgba(76, 175, 80, 0.12);
+}
+.btn-on:active {
+  background: rgba(76, 175, 80, 0.25);
+}
+
+/* --- Schedule section --- */
 .schedule-row {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 8px 0;
+  padding: 6px 0;
 }
-.schedule-row label { font-size: 16px; }
+.schedule-row label {
+  font-size: 15px;
+  color: #e0e0e0;
+}
 .toggle {
   position: relative;
   width: 50px;
   height: 28px;
   cursor: pointer;
+  flex-shrink: 0;
 }
 .toggle input { display: none; }
 .toggle-slider {
   position: absolute;
   inset: 0;
-  background: #444;
+  background: #555555;
   border-radius: 14px;
-  transition: background 0.2s;
+  transition: background 0.25s ease;
 }
 .toggle-slider::after {
   content: "";
@@ -92,119 +160,220 @@ h2 {
   top: 3px;
   background: #ccc;
   border-radius: 50%;
-  transition: transform 0.2s;
+  transition: transform 0.25s ease, background 0.25s ease;
 }
-.toggle input:checked + .toggle-slider { background: #4caf50; }
-.toggle input:checked + .toggle-slider::after { transform: translateX(22px); }
+.toggle input:checked + .toggle-slider { background: #4CAF50; }
+.toggle input:checked + .toggle-slider::after {
+  transform: translateX(22px);
+  background: #ffffff;
+}
+
+.schedule-divider {
+  border: none;
+  border-top: 1px solid #3a3a3a;
+  margin: 4px 0;
+}
+
 .time-picker {
   display: flex;
   align-items: center;
-  gap: 4px;
+  gap: 6px;
 }
 .time-input {
   width: 52px;
   padding: 8px 4px;
   font-size: 18px;
+  font-weight: 600;
   text-align: center;
-  background: #2a2a2a;
+  background: #1a1a1a;
   color: #e0e0e0;
-  border: 1px solid #444;
-  border-radius: 4px;
+  border: 1px solid #444444;
+  border-radius: 8px;
+  transition: border-color 0.2s ease;
+  -moz-appearance: textfield;
 }
-.time-sep { font-size: 20px; font-weight: bold; }
+.time-input::-webkit-outer-spin-button,
+.time-input::-webkit-inner-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+.time-input:focus {
+  outline: none;
+  border-color: #90CAF9;
+}
+.time-sep {
+  font-size: 20px;
+  font-weight: bold;
+  color: #888888;
+}
 .time-btn {
-  padding: 8px 12px;
-  font-size: 14px;
-  background: #2a2a2a;
-  color: #e0e0e0;
-  border: 1px solid #444;
-  border-radius: 4px;
+  padding: 8px 16px;
+  font-size: 13px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  background: rgba(144, 202, 249, 0.12);
+  color: #90CAF9;
+  border: 1px solid rgba(144, 202, 249, 0.3);
+  border-radius: 8px;
   cursor: pointer;
+  transition: background 0.15s ease;
 }
-.time-btn:active { background: #444; }
+.time-btn:hover {
+  background: rgba(144, 202, 249, 0.2);
+}
+.time-btn:active {
+  background: rgba(144, 202, 249, 0.3);
+}
+
+/* --- Connection footer --- */
+.conn-footer {
+  margin-top: auto;
+  padding-top: 16px;
+}
 .conn-bar {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 6px 0;
-  font-size: 13px;
-  color: #888;
+  padding: 8px 0;
+  font-size: 12px;
+  color: #666666;
 }
 .conn-dot {
   display: inline-block;
-  width: 8px;
-  height: 8px;
+  width: 6px;
+  height: 6px;
   border-radius: 50%;
   margin-right: 6px;
+  transition: background 0.4s ease;
 }
-.conn-ok { background: #ffc107; }
+.conn-ok { background: #FFC107; }
 .conn-err { background: #f44336; }
-.last-update { font-size: 12px; color: #666; }
+.last-update {
+  font-size: 11px;
+  color: #555555;
+}
+
+/* --- Settings button --- */
 .settings-btn {
   position: fixed;
-  top: 10px;
-  right: 10px;
-  background: none;
-  border: 1px solid #444;
-  color: #888;
-  font-size: 20px;
-  padding: 4px 10px;
-  border-radius: 4px;
+  top: 12px;
+  right: 12px;
+  background: #2a2a2a;
+  border: 1px solid #444444;
+  color: #888888;
+  font-size: 18px;
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
   cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: background 0.15s ease, color 0.15s ease;
+  z-index: 50;
 }
-.settings-btn:active { background: #333; }
-/* Modal */
+.settings-btn:hover {
+  background: #333333;
+  color: #e0e0e0;
+}
+.settings-btn:active {
+  background: #444444;
+}
+
+/* --- Modal overlay --- */
 .modal-overlay {
   display: none;
   position: fixed;
   inset: 0;
-  background: rgba(0,0,0,0.8);
+  background: rgba(0, 0, 0, 0.75);
+  backdrop-filter: blur(4px);
+  -webkit-backdrop-filter: blur(4px);
   z-index: 100;
   justify-content: center;
   align-items: center;
+  opacity: 0;
+  transition: opacity 0.2s ease;
 }
-.modal-overlay.open { display: flex; }
+.modal-overlay.open {
+  display: flex;
+  opacity: 1;
+}
 .modal {
-  background: #222;
-  border: 1px solid #444;
-  border-radius: 8px;
-  padding: 20px;
+  background: #2a2a2a;
+  border: 1px solid #444444;
+  border-radius: 16px;
+  padding: 24px;
   width: 90%;
   max-width: 360px;
+  box-shadow: 0 16px 48px rgba(0, 0, 0, 0.4);
+  transform: translateY(10px);
+  transition: transform 0.2s ease;
 }
-.modal h3 { margin-bottom: 12px; font-size: 16px; }
-.modal label { display: block; font-size: 13px; color: #aaa; margin: 8px 0 4px; }
+.modal-overlay.open .modal {
+  transform: translateY(0);
+}
+.modal h3 {
+  margin-bottom: 16px;
+  font-size: 17px;
+  font-weight: 700;
+  color: #e0e0e0;
+}
+.modal label {
+  display: block;
+  font-size: 12px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  color: #888888;
+  margin: 12px 0 6px;
+}
 .modal input[type="text"],
 .modal input[type="password"] {
   width: 100%;
-  padding: 8px;
+  padding: 10px 12px;
   font-size: 14px;
   background: #1a1a1a;
   color: #e0e0e0;
-  border: 1px solid #444;
-  border-radius: 4px;
+  border: 1px solid #444444;
+  border-radius: 8px;
+  transition: border-color 0.2s ease;
+}
+.modal input[type="text"]:focus,
+.modal input[type="password"]:focus {
+  outline: none;
+  border-color: #90CAF9;
 }
 .modal-btns {
   display: flex;
   gap: 8px;
-  margin-top: 16px;
+  margin-top: 20px;
   justify-content: flex-end;
 }
 .modal-btns button {
-  padding: 8px 16px;
+  padding: 10px 20px;
   font-size: 14px;
-  border: 1px solid #444;
-  border-radius: 4px;
+  font-weight: 600;
+  border: 1px solid #444444;
+  border-radius: 8px;
   cursor: pointer;
-  background: #2a2a2a;
+  background: #333333;
   color: #e0e0e0;
+  transition: background 0.15s ease;
 }
-.modal-btns button.primary { background: #4caf50; color: #fff; border-color: #4caf50; }
-.modal-btns button:active { opacity: 0.7; }
-.ack-line {
-  font-size: 13px;
-  color: #888;
-  padding: 2px 0 4px;
+.modal-btns button:hover {
+  background: #3a3a3a;
+}
+.modal-btns button.primary {
+  background: #4CAF50;
+  color: #ffffff;
+  border-color: #4CAF50;
+}
+.modal-btns button.primary:hover {
+  background: #43a047;
+}
+.modal-btns button:active {
+  opacity: 0.8;
 }
 </style>
 </head>
@@ -212,38 +381,44 @@ h2 {
 
 <button class="settings-btn" onclick="openSettings()">&#9881;</button>
 
-<h2>Manual control</h2>
-<div id="status" class="status-line status-off">--</div>
-<div id="ack" class="ack-line"></div>
-<div class="btn-row">
-  <button class="btn btn-off" onclick="sendCmd('off')">OFF</button>
-  <button class="btn" onclick="sendCmd('sub')">&minus;30</button>
-  <button class="btn" onclick="sendCmd('ext')">+30</button>
-  <button class="btn btn-on" onclick="sendCmd('t90')">90</button>
-</div>
-
-<h2>Schedule</h2>
-<div class="schedule-row">
-  <label>Schedule enabled</label>
-  <label class="toggle">
-    <input type="checkbox" id="schToggle" onchange="saveSchedule()">
-    <span class="toggle-slider"></span>
-  </label>
-</div>
-<div class="schedule-row">
-  <label>Wake-up time</label>
-  <div class="time-picker">
-    <input type="number" id="schH" class="time-input" min="0" max="23" value="6">
-    <span class="time-sep">:</span>
-    <input type="number" id="schM" class="time-input" min="0" max="59" value="0" step="5">
-    <button class="time-btn" onclick="saveSchedule()">Set</button>
+<div class="card">
+  <div class="card-title">Manual control</div>
+  <div id="status" class="status-line status-off">--</div>
+  <div id="ack" class="ack-line"></div>
+  <div class="btn-row">
+    <button class="btn btn-off" onclick="sendCmd('off')">OFF</button>
+    <button class="btn" onclick="sendCmd('sub')">&minus;30</button>
+    <button class="btn" onclick="sendCmd('ext')">+30</button>
+    <button class="btn btn-on" onclick="sendCmd('t90')">90</button>
   </div>
 </div>
 
-<h2>Connection</h2>
-<div class="conn-bar">
-  <span><span id="connDot" class="conn-dot conn-err"></span><span id="connText">Not connected</span></span>
-  <span id="lastUpdate" class="last-update"></span>
+<div class="card">
+  <div class="card-title">Schedule</div>
+  <div class="schedule-row">
+    <label>Schedule enabled</label>
+    <label class="toggle">
+      <input type="checkbox" id="schToggle" onchange="saveSchedule()">
+      <span class="toggle-slider"></span>
+    </label>
+  </div>
+  <hr class="schedule-divider">
+  <div class="schedule-row">
+    <label>Wake-up time</label>
+    <div class="time-picker">
+      <input type="number" id="schH" class="time-input" min="0" max="23" value="6">
+      <span class="time-sep">:</span>
+      <input type="number" id="schM" class="time-input" min="0" max="59" value="0" step="5">
+      <button class="time-btn" onclick="saveSchedule()">Set</button>
+    </div>
+  </div>
+</div>
+
+<div class="conn-footer">
+  <div class="conn-bar">
+    <span><span id="connDot" class="conn-dot conn-err"></span><span id="connText">Not connected</span></span>
+    <span id="lastUpdate" class="last-update"></span>
+  </div>
 </div>
 
 <!-- Settings modal -->
@@ -282,6 +457,11 @@ h2 {
   window.closeSettings = function() {
     document.getElementById("settingsModal").classList.remove("open");
   };
+
+  // Close modal on overlay click
+  document.getElementById("settingsModal").addEventListener("click", function(e) {
+    if (e.target === this) closeSettings();
+  });
 
   window.saveCreds = function() {
     const u = document.getElementById("inputUser").value.trim();
