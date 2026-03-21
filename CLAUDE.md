@@ -38,12 +38,21 @@ IMPORTANT: This repo is **public**. No real API keys, usernames, or IPs in commi
 
 The Shelly mJS runtime is severely limited. When writing or modifying `device/coffee.js`:
 
-- No Promises, no async/await, no template literals
+- No Promises, no async/await, no template literals, no arrow functions
 - No `Array.indexOf()`, no `String.split()`, no `String.padStart()`
 - `JSON.parse()` returns `undefined` on failure (not `null`)
-- KVS operations are async with callbacks (use counter pattern for multiple loads)
+- KVS operations are async with callbacks — must be chained sequentially (see below)
 - Single-threaded cooperative execution — no blocking loops
 - HTTP request size limit: 3072 bytes total
+
+### Lessons learned from implementation (Phase 2)
+
+- **Max ~4-5 concurrent timers.** Exceeding this crashes the script. Consolidate into fewer timers with counter-based dispatch (e.g., one 30s timer handles tick, schedule check, and heartbeat).
+- **Max ~3 concurrent Shelly.call().** Firing 6 parallel KVS.Get calls causes "too many calls in progress" crash. Chain them sequentially instead of parallel.
+- **Shelly.call userdata (4th param) is unreliable** — always arrives as empty string in callbacks. Use closure-captured variables instead.
+- **Switch.Set generates events.** Calling `Switch.Set` fires a `toggle` event on `switch:0`. If the button handler catches all events, it creates a rapid on-off feedback loop. Filter to `single_push` or `btn_down` events only.
+- **Script.PutCode append mode.** Large scripts may need multiple PutCode calls with `append: true` after the first chunk.
+- **Script upload via RPC.** No need to paste into web UI — use `Script.Create` + `Script.PutCode` + `Script.Start` + `Script.SetConfig` (enable: true for auto-start).
 
 ## Communication architecture
 
@@ -55,6 +64,13 @@ Phone ──HTTP (local, same wifi)──────> Shelly
 Three Adafruit IO feeds: `command` (phone→device), `config` (phone→device), `heartbeat` (device→phone).
 
 Adafruit IO does NOT support MQTT retain. Workaround: `/get` topic on connect.
+
+### Adafruit IO operational notes
+
+- **Single MQTT connection per account.** The Shelly holds the slot — `mosquitto_sub`/`mosquitto_pub` from the computer will fail to connect while the Shelly is connected. Test MQTT via REST-to-MQTT path instead.
+- **Rate limit: 30 data points/min.** Exceeding triggers escalating bans (30s → 60s → up to 1 hour). Monitor via: `curl -s "https://io.adafruit.com/api/v2/${AIO_USER}/throttle" -H "X-AIO-Key: ${AIO_KEY}"`
+- **topic_prefix cannot be empty.** The Shelly resets it to the device ID. Set to `{AIO_USER}/feeds` to avoid rejected publishes.
+- **Empty feed /get returns non-JSON.** The script must handle `JSON.parse()` returning `undefined` gracefully.
 
 ## Git workflow
 

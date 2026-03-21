@@ -161,13 +161,43 @@ Many of doc 00's open questions (§5) have been answered by later docs. A pass t
 
 ---
 
-## 4. Summary of required actions before implementation
+## 4. Phase 2 implementation lessons (2026-03-21)
+
+Issues discovered during mJS script development that were not anticipated in the spec docs:
+
+### 4.1 Shelly timer limit (~4-5 concurrent timers)
+
+The mJS runtime crashes with "too many running timers" if you create separate timers for tick, schedule, heartbeat, and debounce. **Fix:** consolidate into a single repeating timer with counter-based dispatch.
+
+### 4.2 Shelly.call concurrency limit (~3 concurrent calls)
+
+Firing 6 parallel `KVS.Get` calls at boot causes "too many calls in progress" crash. The spec's counter-based callback pattern (doc 05 §3) assumed parallel calls would work. **Fix:** chain KVS loads sequentially — each callback triggers the next load.
+
+### 4.3 Switch.Set generates toggle events (feedback loop)
+
+`Shelly.call("Switch.Set", ...)` fires a `toggle` event on `switch:0`. If the button handler listens for all events, it catches Switch.Set-generated toggles and inverts the switch, creating a rapid on-off feedback loop. **Fix:** filter event handler to `single_push` or `btn_down` events only.
+
+### 4.4 Shelly.call userdata parameter is unreliable
+
+The 4th parameter to `Shelly.call()` is supposed to be passed through to the callback, but it always arrives as an empty string. **Fix:** use closure-captured variables instead of userdata.
+
+### 4.5 Adafruit IO single MQTT connection
+
+Only one MQTT client can connect per account. The Shelly holds the connection, so `mosquitto_sub`/`mosquitto_pub` from a computer cannot connect simultaneously. **Fix:** test MQTT indirectly via REST→MQTT path (post to REST, verify device receives via MQTT).
+
+### 4.6 Shelly MQTT topic_prefix cannot be empty
+
+Setting `topic_prefix` to `""` causes the Shelly to revert it to the device ID (e.g., `shellyplugsg3-8cbfeaa31938`). Publishes to `{device_id}/online` are rejected by Adafruit IO as unrecognized topic format, triggering rate-limit bans. **Fix:** set `topic_prefix` to `{AIO_USER}/feeds`.
+
+---
+
+## 5. Summary of required actions before implementation
 
 | # | Item | Risk | Blocks |
 |---|---|---|---|
 | 2.1 | ~~Test `Shelly.addRPCHandler()` on device~~ | ~~High~~ | RESOLVED — use `HTTPServer.registerEndpoint()` |
 | 2.2 | ~~Test timezone-aware local time API~~ | ~~High~~ | RESOLVED — `new Date().getHours()/getMinutes()` returns local time, DST-aware |
-| 2.3 | Test `/get` response on empty feed | Medium | First deployment (doc 07 §2) |
+| 2.3 | ~~Test `/get` response on empty feed~~ | ~~Medium~~ | RESOLVED (Phase 2A.6) — returns non-JSON, script handles gracefully |
 | 2.4 | Design post-command UX for remote path | Medium | Android app implementation (doc 06) |
 | 2.5 | Multi-phone config race | Low | Nothing — accepted limitation |
 | 3.1 | Decision renumbering | None | Nothing — cosmetic |
