@@ -1,0 +1,481 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<title>Coffee Timer</title>
+<style>
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body {
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  background: #1a1a1a;
+  color: #e0e0e0;
+  padding: 12px;
+  max-width: 480px;
+  margin: 0 auto;
+}
+h2 {
+  font-size: 14px;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  color: #888;
+  border-bottom: 1px solid #333;
+  padding: 8px 0 4px;
+  margin: 16px 0 8px;
+}
+.status-line {
+  font-size: 20px;
+  font-weight: bold;
+  padding: 8px 0;
+}
+.status-on { color: #4caf50; }
+.status-off { color: #888; }
+.status-error { color: #f44336; }
+.mode-tag {
+  font-size: 12px;
+  font-weight: normal;
+  background: #333;
+  padding: 2px 8px;
+  border-radius: 4px;
+  margin-left: 8px;
+}
+.btn-row {
+  display: flex;
+  gap: 8px;
+  margin: 8px 0;
+}
+.btn {
+  flex: 1;
+  padding: 14px 0;
+  font-size: 18px;
+  font-weight: bold;
+  border: 1px solid #444;
+  border-radius: 6px;
+  background: #2a2a2a;
+  color: #e0e0e0;
+  cursor: pointer;
+  text-align: center;
+  -webkit-tap-highlight-color: transparent;
+  user-select: none;
+}
+.btn:active { background: #444; }
+.btn-off { border-color: #f44336; color: #f44336; }
+.btn-on { border-color: #4caf50; color: #4caf50; }
+.schedule-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 8px 0;
+}
+.schedule-row label { font-size: 16px; }
+.toggle {
+  position: relative;
+  width: 50px;
+  height: 28px;
+  cursor: pointer;
+}
+.toggle input { display: none; }
+.toggle-slider {
+  position: absolute;
+  inset: 0;
+  background: #444;
+  border-radius: 14px;
+  transition: background 0.2s;
+}
+.toggle-slider::after {
+  content: "";
+  position: absolute;
+  width: 22px;
+  height: 22px;
+  left: 3px;
+  top: 3px;
+  background: #ccc;
+  border-radius: 50%;
+  transition: transform 0.2s;
+}
+.toggle input:checked + .toggle-slider { background: #4caf50; }
+.toggle input:checked + .toggle-slider::after { transform: translateX(22px); }
+.time-picker {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+.time-input {
+  width: 52px;
+  padding: 8px 4px;
+  font-size: 18px;
+  text-align: center;
+  background: #2a2a2a;
+  color: #e0e0e0;
+  border: 1px solid #444;
+  border-radius: 4px;
+}
+.time-sep { font-size: 20px; font-weight: bold; }
+.time-btn {
+  padding: 8px 12px;
+  font-size: 14px;
+  background: #2a2a2a;
+  color: #e0e0e0;
+  border: 1px solid #444;
+  border-radius: 4px;
+  cursor: pointer;
+}
+.time-btn:active { background: #444; }
+.conn-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 6px 0;
+  font-size: 13px;
+  color: #888;
+}
+.conn-dot {
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  margin-right: 6px;
+}
+.conn-ok { background: #ffc107; }
+.conn-err { background: #f44336; }
+.last-update { font-size: 12px; color: #666; }
+.settings-btn {
+  position: fixed;
+  top: 10px;
+  right: 10px;
+  background: none;
+  border: 1px solid #444;
+  color: #888;
+  font-size: 20px;
+  padding: 4px 10px;
+  border-radius: 4px;
+  cursor: pointer;
+}
+.settings-btn:active { background: #333; }
+/* Modal */
+.modal-overlay {
+  display: none;
+  position: fixed;
+  inset: 0;
+  background: rgba(0,0,0,0.8);
+  z-index: 100;
+  justify-content: center;
+  align-items: center;
+}
+.modal-overlay.open { display: flex; }
+.modal {
+  background: #222;
+  border: 1px solid #444;
+  border-radius: 8px;
+  padding: 20px;
+  width: 90%;
+  max-width: 360px;
+}
+.modal h3 { margin-bottom: 12px; font-size: 16px; }
+.modal label { display: block; font-size: 13px; color: #aaa; margin: 8px 0 4px; }
+.modal input[type="text"],
+.modal input[type="password"] {
+  width: 100%;
+  padding: 8px;
+  font-size: 14px;
+  background: #1a1a1a;
+  color: #e0e0e0;
+  border: 1px solid #444;
+  border-radius: 4px;
+}
+.modal-btns {
+  display: flex;
+  gap: 8px;
+  margin-top: 16px;
+  justify-content: flex-end;
+}
+.modal-btns button {
+  padding: 8px 16px;
+  font-size: 14px;
+  border: 1px solid #444;
+  border-radius: 4px;
+  cursor: pointer;
+  background: #2a2a2a;
+  color: #e0e0e0;
+}
+.modal-btns button.primary { background: #4caf50; color: #fff; border-color: #4caf50; }
+.modal-btns button:active { opacity: 0.7; }
+.ack-line {
+  font-size: 13px;
+  color: #888;
+  padding: 2px 0 4px;
+}
+</style>
+</head>
+<body>
+
+<button class="settings-btn" onclick="openSettings()">&#9881;</button>
+
+<h2>Manual control</h2>
+<div id="status" class="status-line status-off">--</div>
+<div id="ack" class="ack-line"></div>
+<div class="btn-row">
+  <button class="btn btn-off" onclick="sendCmd('off')">OFF</button>
+  <button class="btn" onclick="sendCmd('sub')">&minus;30</button>
+  <button class="btn" onclick="sendCmd('ext')">+30</button>
+  <button class="btn btn-on" onclick="sendCmd('t90')">90</button>
+</div>
+
+<h2>Schedule</h2>
+<div class="schedule-row">
+  <label>Schedule enabled</label>
+  <label class="toggle">
+    <input type="checkbox" id="schToggle" onchange="saveSchedule()">
+    <span class="toggle-slider"></span>
+  </label>
+</div>
+<div class="schedule-row">
+  <label>Wake-up time</label>
+  <div class="time-picker">
+    <input type="number" id="schH" class="time-input" min="0" max="23" value="6">
+    <span class="time-sep">:</span>
+    <input type="number" id="schM" class="time-input" min="0" max="59" value="0" step="5">
+    <button class="time-btn" onclick="saveSchedule()">Set</button>
+  </div>
+</div>
+
+<h2>Connection</h2>
+<div class="conn-bar">
+  <span><span id="connDot" class="conn-dot conn-err"></span><span id="connText">Not connected</span></span>
+  <span id="lastUpdate" class="last-update"></span>
+</div>
+
+<!-- Settings modal -->
+<div id="settingsModal" class="modal-overlay">
+  <div class="modal">
+    <h3>Adafruit IO Credentials</h3>
+    <label for="inputUser">Username</label>
+    <input type="text" id="inputUser" autocapitalize="none" autocorrect="off">
+    <label for="inputKey">AIO Key</label>
+    <input type="password" id="inputKey">
+    <div class="modal-btns">
+      <button onclick="closeSettings()">Cancel</button>
+      <button class="primary" onclick="saveCreds()">Save</button>
+    </div>
+  </div>
+</div>
+
+<script>
+(function() {
+  "use strict";
+
+  // --- Credential management ---
+  let aioUser = localStorage.getItem("aio_user") || "";
+  let aioKey  = localStorage.getItem("aio_key")  || "";
+  let pollTimer = null;
+  let currentConfig = null; // cached config for read-modify-write
+
+  function hasCreds() { return aioUser && aioKey; }
+
+  window.openSettings = function() {
+    document.getElementById("inputUser").value = aioUser;
+    document.getElementById("inputKey").value = aioKey;
+    document.getElementById("settingsModal").classList.add("open");
+  };
+
+  window.closeSettings = function() {
+    document.getElementById("settingsModal").classList.remove("open");
+  };
+
+  window.saveCreds = function() {
+    const u = document.getElementById("inputUser").value.trim();
+    const k = document.getElementById("inputKey").value.trim();
+    if (!u || !k) { alert("Both fields are required."); return; }
+    aioUser = u;
+    aioKey = k;
+    localStorage.setItem("aio_user", u);
+    localStorage.setItem("aio_key", k);
+    closeSettings();
+    refreshStatus();
+    loadConfig();
+  };
+
+  // Prompt on first load if no creds
+  if (!hasCreds()) {
+    setTimeout(function() { openSettings(); }, 200);
+  }
+
+  // --- API helpers ---
+  function apiUrl(feed, path) {
+    return "https://io.adafruit.com/api/v2/" + encodeURIComponent(aioUser) + "/feeds/" + feed + "/" + path;
+  }
+
+  function apiHeaders() {
+    return { "X-AIO-Key": aioKey, "Content-Type": "application/json" };
+  }
+
+  async function apiGet(feed, path) {
+    const resp = await fetch(apiUrl(feed, path), { headers: apiHeaders() });
+    if (!resp.ok) throw new Error("HTTP " + resp.status);
+    return resp.json();
+  }
+
+  async function apiPost(feed, path, body) {
+    const resp = await fetch(apiUrl(feed, path), {
+      method: "POST",
+      headers: apiHeaders(),
+      body: JSON.stringify(body)
+    });
+    if (!resp.ok) throw new Error("HTTP " + resp.status);
+    return resp.json();
+  }
+
+  // --- Status display ---
+  function setStatus(text, cls) {
+    const el = document.getElementById("status");
+    el.textContent = text;
+    el.className = "status-line " + cls;
+  }
+
+  function setAck(text) {
+    document.getElementById("ack").textContent = text;
+  }
+
+  function setConn(ok, text) {
+    document.getElementById("connDot").className = "conn-dot " + (ok ? "conn-ok" : "conn-err");
+    document.getElementById("connText").textContent = text;
+    if (ok) {
+      document.getElementById("lastUpdate").textContent =
+        "Updated " + new Date().toLocaleTimeString();
+    }
+  }
+
+  async function refreshStatus() {
+    if (!hasCreds()) return;
+    try {
+      const data = await apiGet("heartbeat", "data/last");
+      const val = JSON.parse(data.value);
+
+      if (val.s === "on") {
+        setStatus("ON with " + val.r + " min to go", "status-on");
+      } else {
+        setStatus("OFF", "status-off");
+      }
+
+      // Mode tag
+      let modeText = "";
+      if (val.mode === "sch") modeText = "scheduled";
+      else if (val.mode === "man") modeText = "manual";
+      if (modeText) {
+        document.getElementById("status").innerHTML +=
+          ' <span class="mode-tag">' + modeText + '</span>';
+      }
+
+      // Ack
+      if (val.ack) {
+        const ackMap = { ext: "+30", sub: "-30", off: "off", t90: "90", sch: "schedule" };
+        setAck("Last command: " + (ackMap[val.ack] || val.ack));
+      } else {
+        setAck("");
+      }
+
+      // Schedule info from heartbeat
+      if (typeof val.sch !== "undefined") {
+        document.getElementById("schToggle").checked = val.sch === 1;
+      }
+      if (typeof val.h !== "undefined") {
+        document.getElementById("schH").value = val.h;
+      }
+      if (typeof val.m !== "undefined") {
+        document.getElementById("schM").value = val.m;
+      }
+
+      setConn(true, "Remote (Adafruit IO)");
+    } catch (e) {
+      setStatus("Unknown -- cannot reach Adafruit IO", "status-error");
+      setAck("");
+      setConn(false, "Offline: " + e.message);
+    }
+  }
+
+  // --- Commands ---
+  window.sendCmd = async function(cmd) {
+    if (!hasCreds()) { openSettings(); return; }
+    try {
+      const ts = Math.floor(Date.now() / 1000);
+      const payload = JSON.stringify({ c: cmd, ts: ts });
+      await apiPost("command", "data", { value: payload });
+      // Brief delay then refresh to let device process
+      setTimeout(refreshStatus, 1500);
+    } catch (e) {
+      alert("Command failed: " + e.message);
+    }
+  };
+
+  // --- Config / Schedule ---
+  async function loadConfig() {
+    if (!hasCreds()) return;
+    try {
+      const data = await apiGet("config", "data/last");
+      currentConfig = JSON.parse(data.value);
+      // Update UI from config (more authoritative than heartbeat for schedule)
+      if (typeof currentConfig.sch !== "undefined") {
+        document.getElementById("schToggle").checked = currentConfig.sch === 1;
+      }
+      if (typeof currentConfig.h !== "undefined") {
+        document.getElementById("schH").value = currentConfig.h;
+      }
+      if (typeof currentConfig.m !== "undefined") {
+        document.getElementById("schM").value = currentConfig.m;
+      }
+    } catch (e) {
+      // Config feed might not exist yet; ignore
+      console.warn("Config load failed:", e);
+    }
+  }
+
+  window.saveSchedule = async function() {
+    if (!hasCreds()) { openSettings(); return; }
+    try {
+      // Read current config first (read-modify-write)
+      const data = await apiGet("config", "data/last");
+      currentConfig = JSON.parse(data.value);
+
+      const newCfg = {
+        v:   (currentConfig.v || 0) + 1,
+        sch: document.getElementById("schToggle").checked ? 1 : 0,
+        h:   parseInt(document.getElementById("schH").value, 10) || 0,
+        m:   parseInt(document.getElementById("schM").value, 10) || 0,
+        dur: currentConfig.dur || 90,
+        max: currentConfig.max || 180
+      };
+
+      await apiPost("config", "data", { value: JSON.stringify(newCfg) });
+      currentConfig = newCfg;
+
+      // Refresh to show updated state
+      setTimeout(refreshStatus, 1500);
+    } catch (e) {
+      alert("Schedule update failed: " + e.message);
+    }
+  };
+
+  // --- Polling ---
+  function startPolling() {
+    if (pollTimer) clearInterval(pollTimer);
+    refreshStatus();
+    pollTimer = setInterval(refreshStatus, 10000);
+  }
+
+  // --- Init ---
+  if (hasCreds()) {
+    startPolling();
+    loadConfig();
+  }
+
+  // Restart polling when page becomes visible again
+  document.addEventListener("visibilitychange", function() {
+    if (!document.hidden && hasCreds()) {
+      startPolling();
+      loadConfig();
+    }
+  });
+})();
+</script>
+</body>
+</html>
