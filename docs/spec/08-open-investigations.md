@@ -8,7 +8,7 @@ This document collects unresolved questions, implementation risks, and required 
 
 ## 2. Investigations
 
-### 2.1 [HIGH RISK] Shelly.addRPCHandler API — does it exist as assumed?
+### 2.1 [RESOLVED] Shelly.addRPCHandler API — does it exist as assumed?
 
 **The problem:** Doc 05 §6 designs the local HTTP control path around custom RPC handlers:
 
@@ -27,13 +27,22 @@ These would make the Shelly respond to `GET /rpc/Coffee.Command?cmd=t90` and `GE
 - Expose state via a KVS key that can be read via the built-in `KVS.Get` RPC, and commands via `KVS.Set` + a polling script (ugly but functional)
 - Fall back to remote-only control (Adafruit IO REST), giving up local control entirely
 
-**Resolution:** Test on the actual device. Try registering a minimal RPC handler and calling it via HTTP from a browser. This is the single most important validation item — do it before writing the full script.
+**Resolution (2026-03-21):** Tested on device (firmware 1.7.5). **`Shelly.addRPCHandler()` does not exist.** The correct API is **`HTTPServer.registerEndpoint()`**, which was the first alternative listed above.
 
-**Status:** TBD
+Key differences from the assumed design:
+- **URL pattern:** `GET /script/<script_id>/<endpoint>` instead of `GET /rpc/Coffee.Command`
+- **Callback signature:** `function(request, response)` — must call `response.send()` explicitly
+- **Request params:** accessed via `request.query` string, not a params object
+- **Response:** set `response.code`, `response.body`, `response.headers`, then call `response.send()`
+- **Limits:** max 5 endpoints per script, 3072-byte request limit, 10-second timeout
+
+Docs 05 and 06 need updating to reflect this API change. The URL pattern change also affects the Android app's local path.
+
+**Status:** RESOLVED — use `HTTPServer.registerEndpoint()`. See updated doc 05 §6.
 
 ---
 
-### 2.2 [HIGH RISK] Timezone-aware local time in mJS
+### 2.2 [RESOLVED] Timezone-aware local time in mJS
 
 **The problem:** Doc 05 §4.7 (schedule checker) needs the current local hour and minute to compare against the scheduled time:
 
@@ -57,9 +66,16 @@ The schedule is set in local time (the user means "06:10 in my timezone"). The S
 
 This adds complexity and a DST footgun. Much better if the firmware provides local time natively.
 
-**Resolution:** On the actual device, check `Shelly.getComponentStatus("sys")` output after configuring a timezone. Look for fields like `time`, `local_time`, or similar. Also check the Shelly scripting API docs for any time-related helper functions.
+**Resolution (2026-03-21):** Tested on device (firmware 1.7.5, timezone set to `Europe/Oslo`). **Both approaches work:**
 
-**Status:** TBD
+1. **`new Date().getHours()` / `.getMinutes()`** — the mJS `Date` object exists and returns timezone-aware local time. Tested: returned `17:20 GMT+0100` matching the WSL host clock exactly.
+2. **`Sys.GetStatus` `time` field** — returns `"HH:MM"` in local time, DST-aware.
+
+**DST handling:** The Shelly uses IANA timezone identifiers (e.g., `"Europe/Oslo"`), which embed DST rules in the firmware's timezone database. Transitions are automatic — no manual offset management needed.
+
+**Recommendation:** Use `new Date().getHours()` / `.getMinutes()` directly in the schedule checker. It's synchronous (no callback needed) and returns local time with DST already applied.
+
+**Status:** RESOLVED — `Date` object provides timezone-aware local time. DST handled automatically via IANA tz database.
 
 ---
 
@@ -149,8 +165,8 @@ Many of doc 00's open questions (§5) have been answered by later docs. A pass t
 
 | # | Item | Risk | Blocks |
 |---|---|---|---|
-| 2.1 | Test `Shelly.addRPCHandler()` on device | High | Local HTTP control path (doc 05 §6, doc 06 §4) |
-| 2.2 | Test timezone-aware local time API | High | Schedule checker (doc 05 §4.7) |
+| 2.1 | ~~Test `Shelly.addRPCHandler()` on device~~ | ~~High~~ | RESOLVED — use `HTTPServer.registerEndpoint()` |
+| 2.2 | ~~Test timezone-aware local time API~~ | ~~High~~ | RESOLVED — `new Date().getHours()/getMinutes()` returns local time, DST-aware |
 | 2.3 | Test `/get` response on empty feed | Medium | First deployment (doc 07 §2) |
 | 2.4 | Design post-command UX for remote path | Medium | Android app implementation (doc 06) |
 | 2.5 | Multi-phone config race | Low | Nothing — accepted limitation |

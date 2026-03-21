@@ -92,9 +92,9 @@ On device power-up or reboot, the script runs through this sequence:
 8.  Start schedule checker (runs every 30 seconds)
       Timer.set(30000, true, on_schedule_check)
 
-9.  Register local HTTP RPC endpoints
-      Register Coffee.Command handler
-      Register Coffee.Status handler
+9.  Register local HTTP endpoints (HTTPServer.registerEndpoint)
+      Register coffee_command handler → /script/1/coffee_command
+      Register coffee_status handler  → /script/1/coffee_status
 
 10. Wait for NTP sync (passive — checked by event handler)
       Shelly.addStatusHandler → on NTP sync, set ntp_synced = true
@@ -379,34 +379,49 @@ get_localtime():
 
 ---
 
-## 6. Local HTTP RPC endpoints
+## 6. Local HTTP endpoints
 
-The mJS script registers custom RPC handlers that the phone (on the same wifi) calls directly via HTTP GET.
+The mJS script registers custom HTTP endpoints via `HTTPServer.registerEndpoint()` that the phone (on the same wifi) calls directly via HTTP GET.
 
-### 6.1 `Coffee.Command`
+> **Note:** The originally assumed `Shelly.addRPCHandler()` API does not exist. `HTTPServer.registerEndpoint()` is the correct API (validated 2026-03-21 on firmware 1.7.5). URL pattern is `/script/<script_id>/<endpoint>` instead of `/rpc/Coffee.*`. Max 5 endpoints per script, 3072-byte request limit, 10-second response timeout.
 
-**Request:** `GET /rpc/Coffee.Command?cmd=t90`
+### 6.1 `coffee_command`
+
+**Request:** `GET /script/1/coffee_command?cmd=t90`
 
 **Handler:**
 
 ```
-Shelly.addRPCHandler("Coffee.Command", function(params) {
-  let cmd = params.cmd
-  if not cmd → return {ok: false, error: "missing cmd"}
+HTTPServer.registerEndpoint("coffee_command", function(req, res) {
+  let cmd = get_query_param(req.query, "cmd")
+  if not cmd:
+    res.code = 400
+    res.body = JSON.stringify({ok: false, error: "missing cmd"})
+    res.headers = [["Content-Type", "application/json"]]
+    res.send()
+    return
 
   let valid = ["on", "off", "ext", "sub", "t90"]
-  if valid.indexOf(cmd) < 0 → return {ok: false, error: "unknown command"}
+  if valid.indexOf(cmd) < 0:
+    res.code = 400
+    res.body = JSON.stringify({ok: false, error: "unknown command"})
+    res.headers = [["Content-Type", "application/json"]]
+    res.send()
+    return
 
   execute_command(cmd)
   last_ack = cmd
   publish_heartbeat()
 
-  return {
+  res.code = 200
+  res.headers = [["Content-Type", "application/json"]]
+  res.body = JSON.stringify({
     ok: true,
     state: sw_on ? "on" : "off",
     remaining: Math.floor(remain / 60),
     ack: cmd
-  }
+  })
+  res.send()
 })
 ```
 
@@ -418,15 +433,17 @@ Shelly.addRPCHandler("Coffee.Command", function(params) {
 {"ok":true,"state":"on","remaining":90,"ack":"t90"}
 ```
 
-### 6.2 `Coffee.Status`
+### 6.2 `coffee_status`
 
-**Request:** `GET /rpc/Coffee.Status`
+**Request:** `GET /script/1/coffee_status`
 
 **Handler:**
 
 ```
-Shelly.addRPCHandler("Coffee.Status", function(params) {
-  return {
+HTTPServer.registerEndpoint("coffee_status", function(req, res) {
+  res.code = 200
+  res.headers = [["Content-Type", "application/json"]]
+  res.body = JSON.stringify({
     state: sw_on ? "on" : "off",
     remaining: Math.floor(remain / 60),
     mode: mode,
@@ -435,7 +452,8 @@ Shelly.addRPCHandler("Coffee.Status", function(params) {
     m: cfg_m,
     ntp: ntp_synced,
     ts: ntp_synced ? get_unixtime() : 0
-  }
+  })
+  res.send()
 })
 ```
 
@@ -697,11 +715,11 @@ Internet goes down. MQTT disconnected.
 Device is off, config in KVS, schedule armed.
 
 User on same wifi:
-  GET http://192.168.1.xxx/rpc/Coffee.Command?cmd=t90
+  GET http://192.168.1.xxx/script/1/coffee_command?cmd=t90
   → 200 {"ok":true,"state":"on","remaining":90,"ack":"t90"}
   Device turns on, timer counting down locally.
 
-  GET http://192.168.1.xxx/rpc/Coffee.Status
+  GET http://192.168.1.xxx/script/1/coffee_status
   → 200 {"state":"on","remaining":85,"mode":"remote","sch":1,"h":6,"m":10,"ntp":false,"ts":0}
 
   Note: ntp=false because internet is down and NTP hasn't synced.
@@ -752,9 +770,9 @@ Internet returns:
 ## 16. Open items for implementation
 
 - [ ] Confirm `Shelly.getComponentStatus("sys").unixtime` availability and behavior before/after NTP sync
-- [ ] Confirm how to get timezone-aware local hour/minute from mJS (for schedule checker)
+- [x] ~~Confirm how to get timezone-aware local hour/minute from mJS~~ — `new Date().getHours()/getMinutes()` works, DST-aware via IANA tz
 - [ ] Test `MQTT.subscribe()` persistence across reconnects (does firmware re-subscribe automatically?)
-- [ ] Test `Shelly.addRPCHandler()` — confirm it works for custom method names like `Coffee.Command`
+- [x] ~~Test `Shelly.addRPCHandler()`~~ — does not exist. Use `HTTPServer.registerEndpoint()` instead. Doc 05 §6 updated.
 - [ ] Measure RAM usage after script initialization — verify headroom for JSON parsing
 - [ ] Test KVS.get behavior when key doesn't exist (returns `undefined`? `null`? calls error callback?)
 - [ ] Determine if `Shelly.addStatusHandler` fires for NTP sync events specifically, or if we need to poll

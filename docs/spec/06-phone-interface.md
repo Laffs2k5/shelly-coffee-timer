@@ -17,7 +17,7 @@ From the mockup and discussion, the phone interface must:
 
 ### 2.1 Why a web page alone doesn't work
 
-A hosted HTML page (GitHub Pages, any static host) can talk to Adafruit IO's REST API — they serve proper CORS headers. However, the **local auto-detect path is blocked by CORS**. When the browser tries `fetch("http://192.168.1.xxx/rpc/Coffee.Status")` from a page served at `https://github.io/...`, the Shelly's HTTP server does not include `Access-Control-Allow-Origin` headers, and the browser rejects the response.
+A hosted HTML page (GitHub Pages, any static host) can talk to Adafruit IO's REST API — they serve proper CORS headers. However, the **local auto-detect path is blocked by CORS**. When the browser tries `fetch("http://192.168.1.xxx/script/1/coffee_status")` from a page served at `https://github.io/...`, the Shelly's HTTP server does not include `Access-Control-Allow-Origin` headers, and the browser rejects the response.
 
 This means a pure browser-based solution can only do remote (Adafruit IO), not local. The auto-detect requirement is incompatible with browser security constraints.
 
@@ -116,7 +116,7 @@ Each button sends a command and immediately refreshes status:
 
 **Remote path:** POST to `https://io.adafruit.com/api/v2/{user}/feeds/command/data` with body `{"value": "{\"c\":\"CMD\",\"ts\":UNIXTIME}"}`. The timestamp is the phone's current Unix time.
 
-**Local path:** GET to `http://{shelly_ip}/rpc/Coffee.Command?cmd=CMD`. No timestamp needed (synchronous, no staleness check).
+**Local path:** GET to `http://{shelly_ip}/script/1/coffee_command?cmd=CMD`. No timestamp needed (synchronous, no staleness check).
 
 After sending a command, the app immediately polls for fresh status (doesn't wait for the next 10-second cycle).
 
@@ -164,7 +164,7 @@ Also shows "Last updated: HH:MM:SS" — the time of the most recent successful s
 On each poll cycle (every 10 seconds):
 
 ```
-1. Try local: GET http://{shelly_ip}/rpc/Coffee.Status
+1. Try local: GET http://{shelly_ip}/script/1/coffee_status
      Timeout: 2 seconds
      If success → use local data, mark connection as "Local"
 
@@ -197,7 +197,7 @@ When the app sends a command (timer button press):
 
 ```
 if connection == "Local":
-  GET http://{shelly_ip}/rpc/Coffee.Command?cmd={cmd}
+  GET http://{shelly_ip}/script/1/coffee_command?cmd={cmd}
   → synchronous response with new state
   → update UI immediately from response
 
@@ -269,7 +269,7 @@ If hosted on GitHub Pages with HTTPS, the HTML page can include a minimal `manif
 ```
 App                              Shelly (local)           Adafruit IO (remote)
  │                                    │                         │
- │── GET /rpc/Coffee.Status ─────────►│                         │
+ │── GET /script/1/coffee_status ─────────►│                         │
  │◄── {state, remaining, mode, ...} ──│                         │
  │  (if local reachable, use this)    │                         │
  │                                    │                         │
@@ -284,7 +284,7 @@ App                              Shelly (local)           Adafruit IO (remote)
 App                              Shelly (local)           Adafruit IO (remote)
  │                                    │                         │
  │  [if local]                        │                         │
- │── GET /rpc/Coffee.Command?cmd=ext─►│                         │
+ │── GET /script/1/coffee_command?cmd=ext─►│                         │
  │◄── {ok, state, remaining, ack} ────│                         │
  │                                    │                         │
  │  [if remote]                       │                         │
