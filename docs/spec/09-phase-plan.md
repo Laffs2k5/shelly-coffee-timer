@@ -127,29 +127,26 @@ Build the script from doc 05, adding one capability at a time. Test each before 
 
 ---
 
-## Phase 4: UI Polish — NOT STARTED
+## Phase 4: UI Polish — DONE (2026-03-22)
 
-**Goal:** Improve the user experience of both the Android app and web page. Future work.
+**Goal:** Improve the user experience of both the Android app and web page.
 
-**Prerequisites:** Phase 3 complete.
+### Completed
 
-### Android app
+- ~~Dark theme refinements~~ — Material 3 dark color scheme, green/gray palette (no blue)
+- ~~Better layout and spacing~~ — Card-based status, outlined rounded buttons, subtle connection footer
+- ~~Visual improvements~~ — Consistent styling across app and HTML, hover/active states, transitions
+- ~~Consistent look and feel~~ — Same color palette, button styles, and layout patterns on both platforms
+- App launcher icon (coffee cup with timer)
+- Favicon for GitHub Pages
+- 24-hour time format on HTML
+- Removed confusing "Mode" label, renamed connection to Wi-Fi/Internet
 
-- Loading spinner during connection attempts and mode switches
-- Better layout and spacing
-- Dark theme refinements
-- Notification when coffee maker is currently on
+### Deferred
 
-### HTML page
-
-- Visual improvements (styling, responsiveness)
-- Possibly add PWA support (offline caching, add-to-home-screen)
-
-### Both
-
-- Consistent look and feel between Android app and web page
-
-**Status:** NOT STARTED — future work.
+- Loading spinner during connection/mode switch — future improvement
+- Notification when coffee maker is on — future investigation
+- PWA support — not planned
 
 ---
 
