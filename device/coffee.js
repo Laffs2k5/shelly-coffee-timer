@@ -79,8 +79,10 @@ function turn_off() {
 
 // Core: execute command
 function execute_command(cmd) {
-  if (cmd === "on" || cmd === "t90") {
+  if (cmd === "on") {
     turn_on(cfg_dur, "remote");
+  } else if (cmd === "t90") {
+    turn_on(90, "remote");
   } else if (cmd === "off") {
     if (sw_on) turn_off();
   } else if (cmd === "ext") {
