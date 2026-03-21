@@ -1,0 +1,22 @@
+# Android Studio
+app/.gradle/
+app/build/
+app/local.properties
+app/.idea/
+app/*.iml
+app/captures/
+app/.externalNativeBuild/
+
+# Credentials — never commit these
+*.env
+secrets.*
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Editor files
+*.swp
+*.swo
+*~
+.vscode/
