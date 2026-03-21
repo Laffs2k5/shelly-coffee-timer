@@ -6,14 +6,17 @@ import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.core.view.WindowCompat
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
@@ -25,8 +28,25 @@ import java.util.*
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+
+        // Force dark status bar and navigation bar
+        WindowCompat.setDecorFitsSystemWindows(window, true)
+        window.statusBarColor = android.graphics.Color.parseColor("#1A1A1A")
+        window.navigationBarColor = android.graphics.Color.parseColor("#1A1A1A")
+
         setContent {
-            MaterialTheme {
+            MaterialTheme(
+                colorScheme = darkColorScheme(
+                    primary = Color(0xFF90CAF9),
+                    onPrimary = Color(0xFF1A1A1A),
+                    surface = Color(0xFF1A1A1A),
+                    onSurface = Color(0xFFE0E0E0),
+                    surfaceVariant = Color(0xFF2A2A2A),
+                    onSurfaceVariant = Color(0xFFBBBBBB),
+                    secondary = Color(0xFF4CAF50),
+                    outline = Color(0xFF444444),
+                )
+            ) {
                 AppNavigation()
             }
         }
@@ -60,12 +80,17 @@ fun SettingsScreen(onBack: () -> Unit) {
     var saved by remember { mutableStateOf(false) }
 
     Scaffold(
+        containerColor = MaterialTheme.colorScheme.surface,
         topBar = {
             TopAppBar(
                 title = { Text("Settings") },
                 navigationIcon = {
                     TextButton(onClick = onBack) { Text("Back") }
-                }
+                },
+                colors = TopAppBarDefaults.topAppBarColors(
+                    containerColor = MaterialTheme.colorScheme.surface,
+                    titleContentColor = MaterialTheme.colorScheme.onSurface,
+                )
             )
         }
     ) { padding ->
@@ -76,29 +101,32 @@ fun SettingsScreen(onBack: () -> Unit) {
                 .fillMaxWidth(),
             verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
-            OutlinedTextField(
+            TextField(
                 value = shellyIp,
                 onValueChange = { shellyIp = it; saved = false },
                 label = { Text("Shelly Local IP") },
                 placeholder = { Text("192.168.1.xxx") },
                 modifier = Modifier.fillMaxWidth(),
-                singleLine = true
+                singleLine = true,
+                shape = RoundedCornerShape(8.dp),
             )
 
-            OutlinedTextField(
+            TextField(
                 value = aioUser,
                 onValueChange = { aioUser = it; saved = false },
                 label = { Text("Adafruit IO Username") },
                 modifier = Modifier.fillMaxWidth(),
-                singleLine = true
+                singleLine = true,
+                shape = RoundedCornerShape(8.dp),
             )
 
-            OutlinedTextField(
+            TextField(
                 value = aioKey,
                 onValueChange = { aioKey = it; saved = false },
                 label = { Text("Adafruit IO Key") },
                 modifier = Modifier.fillMaxWidth(),
-                singleLine = true
+                singleLine = true,
+                shape = RoundedCornerShape(8.dp),
             )
 
             Button(
@@ -116,7 +144,7 @@ fun SettingsScreen(onBack: () -> Unit) {
             }
 
             if (saved) {
-                Text("Settings saved.", color = Color(0xFF4CAF50))
+                Text("Settings saved.", color = MaterialTheme.colorScheme.secondary)
             }
         }
     }
@@ -258,6 +286,7 @@ fun MainScreen(onNavigateToSettings: () -> Unit) {
     }
 
     Scaffold(
+        containerColor = MaterialTheme.colorScheme.surface,
         topBar = {
             TopAppBar(
                 title = { Text("Coffee Timer") },
@@ -265,7 +294,11 @@ fun MainScreen(onNavigateToSettings: () -> Unit) {
                     TextButton(onClick = onNavigateToSettings) {
                         Text("Settings")
                     }
-                }
+                },
+                colors = TopAppBarDefaults.topAppBarColors(
+                    containerColor = MaterialTheme.colorScheme.surface,
+                    titleContentColor = MaterialTheme.colorScheme.onSurface,
+                )
             )
         }
     ) { padding ->
@@ -276,32 +309,92 @@ fun MainScreen(onNavigateToSettings: () -> Unit) {
                 .fillMaxWidth(),
             verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
-            // --- Status Section ---
-            Text("Manual Control", style = MaterialTheme.typography.titleMedium)
+            // --- Status Card ---
+            Card(
+                modifier = Modifier.fillMaxWidth(),
+                colors = CardDefaults.cardColors(
+                    containerColor = MaterialTheme.colorScheme.surfaceVariant,
+                ),
+                shape = RoundedCornerShape(12.dp),
+            ) {
+                Column(
+                    modifier = Modifier
+                        .padding(16.dp)
+                        .fillMaxWidth(),
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                ) {
+                    when {
+                        status == null -> {
+                            Text(
+                                text = "\u2615",
+                                fontSize = 36.sp,
+                            )
+                            Spacer(modifier = Modifier.height(8.dp))
+                            Text(
+                                text = "Not connected",
+                                fontSize = 18.sp,
+                                color = Color(0xFF999999),
+                            )
+                            Text(
+                                text = "Device not responding",
+                                fontSize = 13.sp,
+                                color = Color(0xFF666666),
+                            )
+                        }
+                        status!!.state == "on" -> {
+                            Text(
+                                text = "\u2615",
+                                fontSize = 36.sp,
+                            )
+                            Spacer(modifier = Modifier.height(8.dp))
+                            Text(
+                                text = "ON",
+                                fontSize = 28.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = MaterialTheme.colorScheme.secondary,
+                            )
+                            Spacer(modifier = Modifier.height(4.dp))
+                            Text(
+                                text = "${status!!.remaining} min remaining",
+                                fontSize = 20.sp,
+                                color = MaterialTheme.colorScheme.secondary,
+                            )
+                            if (status?.mode?.isNotBlank() == true) {
+                                Spacer(modifier = Modifier.height(4.dp))
+                                Text(
+                                    text = "Mode: ${status!!.mode}",
+                                    fontSize = 13.sp,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                )
+                            }
+                        }
+                        else -> {
+                            Text(
+                                text = "\u2615",
+                                fontSize = 36.sp,
+                            )
+                            Spacer(modifier = Modifier.height(8.dp))
+                            Text(
+                                text = "OFF",
+                                fontSize = 22.sp,
+                                color = Color(0xFF777777),
+                            )
+                            if (status?.mode?.isNotBlank() == true) {
+                                Spacer(modifier = Modifier.height(4.dp))
+                                Text(
+                                    text = "Mode: ${status!!.mode}",
+                                    fontSize = 13.sp,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                )
+                            }
+                        }
+                    }
 
-            val statusText = when {
-                status == null -> "Unknown -- device not responding"
-                status!!.state == "on" -> "ON with ${status!!.remaining} min to go"
-                else -> "OFF"
-            }
-            val statusColor = when {
-                status == null -> Color.Red
-                status!!.state == "on" -> Color(0xFF4CAF50)
-                else -> Color.Gray
-            }
-
-            Text(
-                text = statusText,
-                fontSize = 20.sp,
-                color = statusColor
-            )
-
-            if (status?.mode?.isNotBlank() == true) {
-                Text("Mode: ${status!!.mode}", color = Color.Gray, fontSize = 14.sp)
-            }
-
-            if (status?.ntpSynced == false) {
-                Text("NTP: not synced", color = Color.Red, fontSize = 12.sp)
+                    if (status?.ntpSynced == false) {
+                        Spacer(modifier = Modifier.height(4.dp))
+                        Text("NTP: not synced", color = Color(0xFFEF5350), fontSize = 12.sp)
+                    }
+                }
             }
 
             // --- Timer Buttons ---
@@ -309,10 +402,10 @@ fun MainScreen(onNavigateToSettings: () -> Unit) {
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.spacedBy(8.dp)
             ) {
-                Button(
+                FilledTonalButton(
                     onClick = { sendCmd("off") },
                     enabled = !sending,
-                    modifier = Modifier.weight(1f)
+                    modifier = Modifier.weight(1f),
                 ) { Text("OFF") }
                 Button(
                     onClick = { sendCmd("sub") },
@@ -331,7 +424,7 @@ fun MainScreen(onNavigateToSettings: () -> Unit) {
                 ) { Text("90") }
             }
 
-            HorizontalDivider()
+            HorizontalDivider(color = MaterialTheme.colorScheme.outline)
 
             // --- Schedule Section ---
             Text("Schedule", style = MaterialTheme.typography.titleMedium)
@@ -365,22 +458,33 @@ fun MainScreen(onNavigateToSettings: () -> Unit) {
                 }
             }
 
-            HorizontalDivider()
+            HorizontalDivider(color = MaterialTheme.colorScheme.outline)
 
-            // --- Connection Section ---
-            Text("Connection", style = MaterialTheme.typography.titleMedium)
-
+            // --- Connection (subtle) ---
             val (connText, connColor) = when (connectionMode) {
                 CoffeeApi.ConnectionMode.LOCAL -> {
                     val ip = prefs.getString("shelly_ip", "") ?: ""
                     "Local ($ip)" to Color(0xFF4CAF50)
                 }
                 CoffeeApi.ConnectionMode.REMOTE -> "Remote (Adafruit IO)" to Color(0xFFFFC107)
-                CoffeeApi.ConnectionMode.OFFLINE -> "Offline" to Color.Red
+                CoffeeApi.ConnectionMode.OFFLINE -> "Offline" to Color(0xFFEF5350)
             }
 
-            Text(connText, color = connColor)
-            Text("Last updated: $lastUpdated", color = Color.Gray, fontSize = 12.sp)
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+            ) {
+                Text(
+                    connText,
+                    color = connColor,
+                    fontSize = 12.sp,
+                )
+                Text(
+                    "Updated $lastUpdated",
+                    color = Color(0xFF666666),
+                    fontSize = 12.sp,
+                )
+            }
         }
     }
 }
