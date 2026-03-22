@@ -325,15 +325,15 @@ Feeds used: **3 of 10** (free tier). Seven feeds reserved for future use.
 
 | # | Decision | Rationale |
 |---|---|---|
-| 7 | Commands are not retained | Prevents stale commands from activating the coffee maker after reconnect |
-| 8 | Config is "retained" (latest value available on reconnect via `/get` topic) | Device picks up latest desired config on reconnect. Adafruit IO doesn't support MQTT retain; `/get` achieves the same result (see doc 04 §2) |
-| 9 | Heartbeat is "retained" (latest value available via REST `/data/last`) | Phone sees last known device state even if device is currently offline. REST reads from database, not MQTT retain |
-| 10 | Phone is sole authority for config | Clear ownership, no write conflicts |
-| 11 | Device never writes to command or config feeds | Unidirectional data flow per feed, simple mental model |
-| 12 | Schedule disarm communicated via heartbeat, not config writeback | Keeps config feed phone-owned; heartbeat is the device's voice |
-| 13 | 3 feeds used, 7 reserved | Room for future expansion within free tier (10 feeds available) |
-| 14 | Remote commands carry a timestamp, device discards if older than 2 min | Prevents delayed commands from unexpectedly turning on the coffee maker |
-| 15 | "NTP synced" = at least one successful sync since boot | ESP32 RTC drift is negligible for a 2-min window; no need for continuous NTP |
-| 16 | Device rejects all remote (MQTT) commands before first NTP sync | Cannot verify staleness without a clock; fail-safe |
-| 17 | Local HTTP commands have no staleness check | Synchronous request/response, no intermediary, no delay possible |
-| 18 | Two control paths: local HTTP (direct) and remote MQTT (via Adafruit IO) | Local works without internet; remote adds convenience when away from home |
+| D02.7 | Commands are not retained | Prevents stale commands from activating the coffee maker after reconnect |
+| D02.8 | Config is "retained" (latest value available on reconnect via `/get` topic) | Device picks up latest desired config on reconnect. Adafruit IO doesn't support MQTT retain; `/get` achieves the same result (see doc 04 §2) |
+| D02.9 | Heartbeat is "retained" (latest value available via REST `/data/last`) | Phone sees last known device state even if device is currently offline. REST reads from database, not MQTT retain |
+| D02.10 | Phone is sole authority for config | Clear ownership, no write conflicts |
+| D02.11 | Device never writes to command or config feeds | Unidirectional data flow per feed, simple mental model |
+| D02.12 | Schedule disarm communicated via heartbeat, not config writeback | Keeps config feed phone-owned; heartbeat is the device's voice |
+| D02.13 | 3 feeds used, 7 reserved | Room for future expansion within free tier (10 feeds available) |
+| D02.14 | Remote commands carry a timestamp, device discards if older than 2 min | Prevents delayed commands from unexpectedly turning on the coffee maker |
+| D02.15 | "NTP synced" = at least one successful sync since boot | ESP32 RTC drift is negligible for a 2-min window; no need for continuous NTP |
+| D02.16 | Device rejects all remote (MQTT) commands before first NTP sync | Cannot verify staleness without a clock; fail-safe |
+| D02.17 | Local HTTP commands have no staleness check | Synchronous request/response, no intermediary, no delay possible |
+| D02.18 | Two control paths: local HTTP (direct) and remote MQTT (via Adafruit IO) | Local works without internet; remote adds convenience when away from home |

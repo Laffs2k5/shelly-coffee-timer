@@ -298,11 +298,11 @@ Payload size and mJS memory. `{"state":"on","remaining":74}` is readable but ~40
 
 | # | Decision | Rationale |
 |---|---|---|
-| 19 | Commands are flat JSON with `c` (code) and `ts` (timestamp) | Minimal, parseable by mJS, carries staleness timestamp |
-| 20 | Config is flat JSON with version field `v` | Version allows device to detect stale vs newer config on reconnect |
-| 21 | Heartbeat is flat JSON, latest value always available via REST | Single snapshot of device state; phone reads latest on demand |
-| 22 | Short key names throughout | Memory efficiency on ESP32, smaller payloads |
-| 23 | Local HTTP uses URL params for commands, JSON for responses | GET requests are simple (curl, browser, bookmarks); JSON responses are parseable |
-| 24 | `dur` and `max` are configurable via config feed, not hardcoded | Change defaults without reflashing; safety ceiling remains device-enforced |
-| 25 | `on` and `t90` are both defined (functionally identical) | `on` reads as intent, `t90` as mechanism; can drop one later if redundant |
-| 26 | Heartbeat frequency: 5 min while on, 15 min while off | Balances freshness against message budget; event-triggered publishes fill the gaps |
+| D03.19 | Commands are flat JSON with `c` (code) and `ts` (timestamp) | Minimal, parseable by mJS, carries staleness timestamp |
+| D03.20 | Config is flat JSON with version field `v` | Version allows device to detect stale vs newer config on reconnect |
+| D03.21 | Heartbeat is flat JSON, latest value always available via REST | Single snapshot of device state; phone reads latest on demand |
+| D03.22 | Short key names throughout | Memory efficiency on ESP32, smaller payloads |
+| D03.23 | Local HTTP uses URL params for commands, JSON for responses | GET requests are simple (curl, browser, bookmarks); JSON responses are parseable |
+| D03.24 | `dur` and `max` are configurable via config feed, not hardcoded | Change defaults without reflashing; safety ceiling remains device-enforced |
+| D03.25 | `on` and `t90` are both defined (functionally identical) | `on` reads as intent, `t90` as mechanism; can drop one later if redundant |
+| D03.26 | Heartbeat frequency: 5 min while on, 15 min while off | Balances freshness against message budget; event-triggered publishes fill the gaps |

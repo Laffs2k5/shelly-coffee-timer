@@ -321,7 +321,7 @@ execute_command(cmd):
         turn_off()
 ```
 
-**Note on `on` vs `t90`:** Both call `turn_on(cfg_dur, "remote")`. They are functionally identical as stated in doc 03 decision #25. The script treats them the same.
+**Note on `on` vs `t90`:** Both call `turn_on(cfg_dur, "remote")`. They are functionally identical as stated in doc 03 decision D03.25. The script treats them the same.
 
 **Note on `ext` while off:** Turns on with 30 minutes, not `cfg_dur`. This matches doc 01 §3.2 — the +30 button while off starts a 30-minute session.
 
@@ -559,7 +559,7 @@ If the device boots without internet (wifi only, or no wifi), it loads config fr
 
 ### 10.4 What the device never does
 
-- The device never writes to the config feed. Config is phone-owned (doc 02 decision #10).
+- The device never writes to the config feed. Config is phone-owned (doc 02 decision D02.10).
 - The device never increments `cfg_v`. Only the phone manages the version counter.
 - The device modifies `cfg_sch` locally (sets it to 0 when the schedule fires) but only in KVS, not on the config feed. The heartbeat reports the local state.
 
@@ -753,17 +753,17 @@ Internet returns:
 
 | # | Decision | Rationale |
 |---|---|---|
-| 36 | Timer counts in seconds internally, reports minutes externally | Cleaner arithmetic; future-proof for finer reporting if needed |
-| 37 | Single 60-second tick timer for countdown | Sufficient precision for a coffee maker; minimizes timer overhead on ESP32 |
-| 38 | One-shot heartbeat timer (re-armed with appropriate interval) | Avoids 60-second wake-ups while off; adapts interval to on/off state |
-| 39 | Schedule checker runs every 30 seconds | Ensures we never miss the target minute; negligible CPU cost |
-| 40 | Heartbeat debounce: 2-second cooldown after publishing | Prevents burst of heartbeats when multiple events fire simultaneously |
-| 41 | Boot always forces switch OFF | Power-loss safety (doc 01 §5.2); no timer state survives reboot |
-| 42 | KVS loading uses counter-based callback pattern | mJS has no promises; counter tracks when all async loads complete |
-| 43 | Local HTTP commands have no staleness check and no NTP dependency | Synchronous path — no intermediary, no delay possible (doc 01 §5.4, doc 02 decision #17) |
-| 44 | Config version comparison is strictly greater-than | Prevents replaying old config; phone must always increment `v` |
-| 45 | `ntp_synced` is one-way (false → true, never back to false) | Per doc 01 §5.4: single sync is sufficient for session lifetime |
-| 46 | Script uses short `/f/` topic form for all Adafruit IO topics | Saves bytes on every MQTT operation; meaningful on constrained device (doc 04 decision #33) |
+| D05.36 | Timer counts in seconds internally, reports minutes externally | Cleaner arithmetic; future-proof for finer reporting if needed |
+| D05.37 | Single 60-second tick timer for countdown | Sufficient precision for a coffee maker; minimizes timer overhead on ESP32 |
+| D05.38 | One-shot heartbeat timer (re-armed with appropriate interval) | Avoids 60-second wake-ups while off; adapts interval to on/off state |
+| D05.39 | Schedule checker runs every 30 seconds | Ensures we never miss the target minute; negligible CPU cost |
+| D05.40 | Heartbeat debounce: 2-second cooldown after publishing | Prevents burst of heartbeats when multiple events fire simultaneously |
+| D05.41 | Boot always forces switch OFF | Power-loss safety (doc 01 §5.2); no timer state survives reboot |
+| D05.42 | KVS loading uses counter-based callback pattern | mJS has no promises; counter tracks when all async loads complete |
+| D05.43 | Local HTTP commands have no staleness check and no NTP dependency | Synchronous path — no intermediary, no delay possible (doc 01 §5.4, doc 02 decision D02.17) |
+| D05.44 | Config version comparison is strictly greater-than | Prevents replaying old config; phone must always increment `v` |
+| D05.45 | `ntp_synced` is one-way (false → true, never back to false) | Per doc 01 §5.4: single sync is sufficient for session lifetime |
+| D05.46 | Script uses short `/f/` topic form for all Adafruit IO topics | Saves bytes on every MQTT operation; meaningful on constrained device (doc 04 decision D04.33) |
 
 ---
 

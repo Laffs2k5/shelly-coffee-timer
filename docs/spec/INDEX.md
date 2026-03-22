@@ -135,14 +135,14 @@ For implementation reference: **10 (repo structure) → 08 (investigations and l
 
 ## Decision log
 
-Decisions are numbered within each document. A consolidation pass (doc 08 §3.1) is deferred to Phase 5.
+Decisions use a prefix scheme: `D{doc}.{number}`, e.g., D00.1 is the first decision in doc 00. This was consolidated from the original per-doc numbering in Phase 5.
 
 | Doc | Range | Topic |
 |---|---|---|
-| 00 | #1–6 | Architecture, service selection |
-| 02 | #7–18 | Feeds, retain, staleness, control paths |
-| 03 | #19–26 | Encoding, key names, message format |
-| 04 | #27–35 | Adafruit IO specifics, `/get` workaround, TLS, topic format |
-| 05 | #36–46 | Timer model, boot sequence, NTP, mJS patterns |
-| 06 | #36a–44a | Android app, CORS, auto-detect, schedule UX |
-| 07 | #45a–47a | Deployment, auth, recovery |
+| 00 | D00.1–D00.6 | Architecture, service selection |
+| 02 | D02.7–D02.18 | Feeds, retain, staleness, control paths |
+| 03 | D03.19–D03.26 | Encoding, key names, message format |
+| 04 | D04.27–D04.35 | Adafruit IO specifics, `/get` workaround, TLS, topic format |
+| 05 | D05.36–D05.46 | Timer model, boot sequence, NTP, mJS patterns |
+| 06 | D06.47–D06.55 | Android app, CORS, auto-detect, schedule UX |
+| 07 | D07.56–D07.58 | Deployment, auth, recovery |

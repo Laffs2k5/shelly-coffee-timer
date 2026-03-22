@@ -94,15 +94,15 @@ For the **heartbeat** (device → phone direction), the phone side uses REST `GE
 
 For the **config** feed, the device's mJS script must publish a `/get` request on each MQTT connect. This is a one-line addition to the MQTT `on_connect` handler.
 
-For the **command** feed, no change. Commands were already non-retained by design (doc 02, decision #7). Missing a command while offline is correct behavior.
+For the **command** feed, no change. Commands were already non-retained by design (doc 02, decision D02.7). Missing a command while offline is correct behavior.
 
 ### 2.4 Revised decision
 
 | # | Decision | Rationale |
 |---|---|---|
-| 27 | Use `/get` topic to fetch latest config on MQTT connect | Adafruit IO does not support MQTT retain; `/get` is the equivalent mechanism |
-| 28 | Heartbeat retrieval via REST is unaffected | Phone reads latest value via REST API, which returns from the database regardless of retain |
-| 29 | No architectural changes to feeds, data flow, or authority model | The `/get` workaround is transparent to the overall design |
+| D04.27 | Use `/get` topic to fetch latest config on MQTT connect | Adafruit IO does not support MQTT retain; `/get` is the equivalent mechanism |
+| D04.28 | Heartbeat retrieval via REST is unaffected | Phone reads latest value via REST API, which returns from the database regardless of retain |
+| D04.29 | No architectural changes to feeds, data flow, or authority model | The `/get` workaround is transparent to the overall design |
 
 ---
 
@@ -627,15 +627,15 @@ The dashboard is most useful as a "is it working?" monitor — you can see heart
 
 | # | Decision | Rationale |
 |---|---|---|
-| 27 | Use Adafruit IO `/get` topic to fetch latest config on MQTT connect | Adafruit IO does not support MQTT retain; `/get` is the documented equivalent |
-| 28 | Heartbeat retrieval via REST is unaffected by lack of retain | Phone reads from the data API, which returns the latest stored value |
-| 29 | No architectural changes needed to feeds, data flow, or authority model | The `/get` workaround is a one-line addition to the device's MQTT connect handler |
-| 30 | Use `ssl_ca: "ca.pem"` for TLS with Shelly's built-in CA bundle | Adafruit IO uses a publicly-trusted certificate; avoids manual CA upload |
-| 31 | Disable Shelly's built-in MQTT *application features* (RPC, status_ntf, enable_control) while relying on the firmware's MQTT transport layer (connection, TLS, auto-reconnect, subscribe/publish APIs) | The firmware manages the MQTT connection and exposes `MQTT.subscribe()`/`MQTT.publish()` to mJS — we depend on this. But the higher-level features layered on top (RPC-over-MQTT, status broadcasting, direct switch control) would bypass our script's safety logic, waste rate limit budget, and pollute the topic space. |
-| 32 | Leave `topic_prefix` as default (device ID) | Script addresses Adafruit IO feeds by full topic path; prefix is irrelevant for our feeds |
-| 33 | Use `/f/` short topic form on device | Saves bytes on every publish/subscribe; matters on constrained ESP32 |
-| 34 | Use `/data/last` REST endpoint for phone-side heartbeat reads | Returns single object (not array); simpler parsing |
-| 35 | Key rotation requires local wifi access to the Shelly | No remote credential update mechanism exists; accepted trade-off for zero-infrastructure design |
+| D04.27 | Use Adafruit IO `/get` topic to fetch latest config on MQTT connect | Adafruit IO does not support MQTT retain; `/get` is the documented equivalent |
+| D04.28 | Heartbeat retrieval via REST is unaffected by lack of retain | Phone reads from the data API, which returns the latest stored value |
+| D04.29 | No architectural changes needed to feeds, data flow, or authority model | The `/get` workaround is a one-line addition to the device's MQTT connect handler |
+| D04.30 | Use `ssl_ca: "ca.pem"` for TLS with Shelly's built-in CA bundle | Adafruit IO uses a publicly-trusted certificate; avoids manual CA upload |
+| D04.31 | Disable Shelly's built-in MQTT *application features* (RPC, status_ntf, enable_control) while relying on the firmware's MQTT transport layer (connection, TLS, auto-reconnect, subscribe/publish APIs) | The firmware manages the MQTT connection and exposes `MQTT.subscribe()`/`MQTT.publish()` to mJS — we depend on this. But the higher-level features layered on top (RPC-over-MQTT, status broadcasting, direct switch control) would bypass our script's safety logic, waste rate limit budget, and pollute the topic space. |
+| D04.32 | Leave `topic_prefix` as default (device ID) | Script addresses Adafruit IO feeds by full topic path; prefix is irrelevant for our feeds |
+| D04.33 | Use `/f/` short topic form on device | Saves bytes on every publish/subscribe; matters on constrained ESP32 |
+| D04.34 | Use `/data/last` REST endpoint for phone-side heartbeat reads | Returns single object (not array); simpler parsing |
+| D04.35 | Key rotation requires local wifi access to the Shelly | No remote credential update mechanism exists; accepted trade-off for zero-infrastructure design |
 
 ---
 

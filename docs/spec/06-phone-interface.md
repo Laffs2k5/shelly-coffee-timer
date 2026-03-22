@@ -344,17 +344,15 @@ This was implicit but never stated as a requirement.
 
 | # | Decision | Rationale |
 |---|---|---|
-| 36a | Primary phone interface is a native Android app (Kotlin/Compose) | CORS blocks local HTTP access from browser-hosted pages; native app has no such restriction |
-| 37a | HTML page as fallback for computer access and remote-only use | Covers non-Android devices; remote path via Adafruit IO REST works from any browser |
-| 38a | Auto-detect: try local first (2s timeout), fall back to remote | Local is faster, works without internet, provides more current data |
-| 39a | Shelly IP configured manually in app settings | DHCP reservation makes IP stable; mDNS discovery adds complexity for little gain |
-| 40a | Schedule changes always go via Adafruit IO, even when local | Keeps config authority model simple; schedule changes are rare and can tolerate internet requirement |
-| 41a | Config version managed by read-increment-write on the phone | No local storage of version needed; always reads current from Adafruit IO before writing |
-| 42a | Status polls every 10 seconds when app is in foreground | Balances freshness (heartbeat publishes every 5 min, but local gives real-time) against battery and rate limits |
-| 43a | App distributed as sideloaded APK, not via Play Store | Single-user project; avoids Play Store requirements and review process |
-| 44a | Schedule time uses native Android TimePickerDialog, not separate hour/minute fields | Better UX; the wire format still sends `h` and `m` separately in the config JSON |
-
-**Note on decision numbering:** Decisions 36–46 were used in doc 05. Using 36a–43a here to avoid collision. The final numbering will be consolidated across all docs before implementation.
+| D06.47 | Primary phone interface is a native Android app (Kotlin/Compose) | CORS blocks local HTTP access from browser-hosted pages; native app has no such restriction |
+| D06.48 | HTML page as fallback for computer access and remote-only use | Covers non-Android devices; remote path via Adafruit IO REST works from any browser |
+| D06.49 | Auto-detect: try local first (2s timeout), fall back to remote | Local is faster, works without internet, provides more current data |
+| D06.50 | Shelly IP configured manually in app settings | DHCP reservation makes IP stable; mDNS discovery adds complexity for little gain |
+| D06.51 | Schedule changes always go via Adafruit IO, even when local | Keeps config authority model simple; schedule changes are rare and can tolerate internet requirement |
+| D06.52 | Config version managed by read-increment-write on the phone | No local storage of version needed; always reads current from Adafruit IO before writing |
+| D06.53 | Status polls every 10 seconds when app is in foreground | Balances freshness (heartbeat publishes every 5 min, but local gives real-time) against battery and rate limits |
+| D06.54 | App distributed as sideloaded APK, not via Play Store | Single-user project; avoids Play Store requirements and review process |
+| D06.55 | Schedule time uses native Android TimePickerDialog, not separate hour/minute fields | Better UX; the wire format still sends `h` and `m` separately in the config JSON |
 
 ---
 

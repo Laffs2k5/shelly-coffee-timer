@@ -155,13 +155,13 @@ The device receives both. It accepts the first one (v=4 > v=3) and ignores the s
 
 Decisions are numbered sequentially within each doc but collide across docs: docs 00–03 use 1–26, doc 04 uses 27–35, doc 05 uses 36–46, doc 06 uses 36a–44a, doc 07 uses 45a–47a. A single-pass renumbering across all docs should be done before implementation, or (simpler) adopt a prefix scheme: `D00.1`, `D02.7`, `D05.36`, etc.
 
-**Status:** Deferred to Phase 5 (Testing & Quality).
+**Status:** RESOLVED (Phase 5). Prefix scheme adopted: `D{doc}.{number}`. All decision tables updated. Doc 06 decisions renumbered from 36a-44a to D06.47-D06.55. Doc 07 decisions renumbered from 45a-47a to D07.56-D07.58. INDEX.md decision log updated.
 
 ### 3.2 Doc 00 open questions — audit for answered items
 
 Many of doc 00's open questions (§5) have been answered by later docs. A pass through that list to mark items as resolved (with cross-references) would keep the document useful as a historical record rather than confusing as an outdated checklist.
 
-**Status:** Deferred to Phase 5 (Testing & Quality).
+**Status:** RESOLVED (Phase 5). All 28 open questions in doc 00 §5 have been annotated with cross-references to the docs that answered them. 27 of 28 are fully resolved; 1 (mDNS discovery) is partially addressed (deferred by decision D06.50).
 
 ---
 
@@ -204,5 +204,5 @@ Setting `topic_prefix` to `""` causes the Shelly to revert it to the device ID (
 | 2.3 | ~~Test `/get` response on empty feed~~ | ~~Medium~~ | RESOLVED (Phase 2A.6) — returns non-JSON, script handles gracefully |
 | 2.4 | Design post-command UX for remote path | Medium | Android app implementation (doc 06) |
 | 2.5 | Multi-phone config race | Low | Nothing — accepted limitation |
-| 3.1 | Decision renumbering | None | Deferred to Phase 5 |
-| 3.2 | Doc 00 open questions audit | None | Deferred to Phase 5 |
+| 3.1 | Decision renumbering | None | RESOLVED — prefix scheme adopted (D00.1, D02.7, etc.) |
+| 3.2 | Doc 00 open questions audit | None | RESOLVED — 27/28 questions annotated with cross-references |

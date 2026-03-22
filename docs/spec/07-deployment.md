@@ -85,7 +85,7 @@ If the AIO key needs to be regenerated (compromised, routine rotation):
 3. Update the Shelly via local HTTP: `Mqtt.SetConfig` with new `pass` field, then reboot
 4. Step 3 requires being on the same wifi as the Shelly — there is no remote credential update path
 
-This is an accepted limitation of the zero-infrastructure design (doc 04 decision #35).
+This is an accepted limitation of the zero-infrastructure design (doc 04 decision D04.35).
 
 ### 5.2 Shelly device auth
 
@@ -173,6 +173,6 @@ Not planned, but noted for if/when they become relevant:
 
 | # | Decision | Rationale |
 |---|---|---|
-| 45a | Script updates are manual (web UI paste from git repo) | Single device, no fleet; automated deployment adds complexity for no gain |
-| 46a | No device authentication on local HTTP API (for now) | Local network is trusted; can add `Shelly.SetAuth` later if needed |
-| 47a | Reboot is the universal recovery action | System designed so reboot always produces a safe, known state |
+| D07.56 | Script updates are manual (web UI paste from git repo) | Single device, no fleet; automated deployment adds complexity for no gain |
+| D07.57 | No device authentication on local HTTP API (for now) | Local network is trusted; can add `Shelly.SetAuth` later if needed |
+| D07.58 | Reboot is the universal recovery action | System designed so reboot always produces a safe, known state |

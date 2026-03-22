@@ -260,47 +260,76 @@ Adafruit IO uniquely fits because it offers MQTT + REST on the same underlying f
 
 ### Architecture
 
-- [ ] What feed/topic structure do we need? (e.g., `commands`, `status`, `config`, or single combined?)
-- [ ] Do we need bidirectional status reporting, or just command → ack?
-- [ ] How does the Shelly script reconcile a new MQTT command with its current autonomous behavior?
-- [ ] Message format: flat key-value or nested JSON? (consider mJS parsing limitations and 3072 byte limit)
-- [ ] How do we handle conflicting commands (e.g., "turn on" arrives while autonomous timer says "turn off")?
-- [ ] Do we need command acknowledgment / delivery confirmation beyond MQTT QoS 1?
-- [ ] Should config/schedule be a separate feed from instant commands?
+- [x] What feed/topic structure do we need? (e.g., `commands`, `status`, `config`, or single combined?)
+  > Answered in doc 02 §2: Three feeds — `command`, `config`, `heartbeat` — each with a single purpose and direction.
+- [x] Do we need bidirectional status reporting, or just command → ack?
+  > Answered in doc 02 §2.3 and doc 03 §4: Heartbeat feed provides device-to-phone status; `ack` field confirms last processed command.
+- [x] How does the Shelly script reconcile a new MQTT command with its current autonomous behavior?
+  > Answered in doc 05 §5.3: `execute_command()` handles all commands regardless of current state. Staleness check (doc 05 §4.2) prevents delayed commands.
+- [x] Message format: flat key-value or nested JSON? (consider mJS parsing limitations and 3072 byte limit)
+  > Answered in doc 03 §7: Flat JSON with short keys. Rationale: mJS handles flat objects reliably, short keys save memory.
+- [x] How do we handle conflicting commands (e.g., "turn on" arrives while autonomous timer says "turn off")?
+  > Resolved: Staleness check (doc 02 §3.7, doc 01 §5.5) discards commands older than 2 min. Fresh commands override current state.
+- [x] Do we need command acknowledgment / delivery confirmation beyond MQTT QoS 1?
+  > Answered in doc 03 §4.1: Heartbeat `ack` field is sufficient. Phone checks if `ack` matches the last command sent.
+- [x] Should config/schedule be a separate feed from instant commands?
+  > Answered in doc 02 §2: Yes, `config` is separate from `command`. Config is "desired state" with version gating; commands are instant actions with staleness check.
 
 ### Functional requirements (not yet defined)
 
-- [ ] What does the plug actually control? (heater, lamp, coffee maker — affects logic)
-- [ ] What autonomous behaviors should it have? (timers, schedules, temperature-based, power-based?)
-- [ ] What should be remotely configurable? (schedule, thresholds, mode, on/off?)
-- [ ] Do we need power monitoring data exposed remotely?
-- [ ] What's the phone control UX? (toggle, set schedule, change mode, view status?)
+- [x] What does the plug actually control? (heater, lamp, coffee maker — affects logic)
+  > Answered in doc 01 §1: A coffee maker. Countdown timer on every on-state.
+- [x] What autonomous behaviors should it have? (timers, schedules, temperature-based, power-based?)
+  > Answered in doc 01 §§3-4: Countdown timers (auto-off), one-shot schedule (fire-and-disarm). No temperature/power logic.
+- [x] What should be remotely configurable? (schedule, thresholds, mode, on/off?)
+  > Answered in doc 03 §3: Schedule (sch, h, m), default duration (dur), max ceiling (max). All via config feed.
+- [x] Do we need power monitoring data exposed remotely?
+  > Resolved: No. Listed in doc 01 §8 (out of scope) and doc 07 §8 (future consideration).
+- [x] What's the phone control UX? (toggle, set schedule, change mode, view status?)
+  > Answered in doc 06 §3: Android app with status display, timer buttons (0, -30, +30, 90), schedule toggle and time picker.
 
 ### Service validation (Adafruit IO)
 
-- [ ] Confirm free tier limits are sufficient — 30 msg/min, 10 feeds, 30-day retention
-- [ ] Test: can the Shelly Gen3 connect to Adafruit IO MQTT with TLS? (port 8883, username + AIO key)
-- [ ] Test: does Adafruit IO support retained messages properly for our use case?
-- [ ] Test: can Shelly script subscribe to specific feeds and parse incoming JSON?
-- [ ] What happens when Adafruit IO is unreachable? (firmware MQTT reconnect behavior)
-- [ ] Is 30 msg/min enough if we want periodic status reporting + commands?
-- [ ] Fallback plan if Adafruit IO changes terms or shuts down?
+- [x] Confirm free tier limits are sufficient — 30 msg/min, 10 feeds, 30-day retention
+  > Answered in doc 04 §1.2: Confirmed. 3 of 10 feeds used, peak rate well under 5 msg/min.
+- [x] Test: can the Shelly Gen3 connect to Adafruit IO MQTT with TLS? (port 8883, username + AIO key)
+  > Answered in doc 04 §6.5: Yes, with `ssl_ca: "ca.pem"`. Validated during Phase 1.
+- [x] Test: does Adafruit IO support retained messages properly for our use case?
+  > Answered in doc 04 §2: No — Adafruit IO does not support MQTT retain. Workaround: `/get` topic. See decision D04.27.
+- [x] Test: can Shelly script subscribe to specific feeds and parse incoming JSON?
+  > Answered in doc 04 §6.6: Yes. Validated during Phase 1 with minimal test script.
+- [x] What happens when Adafruit IO is unreachable? (firmware MQTT reconnect behavior)
+  > Answered in doc 04 §8 and doc 02 §7: Firmware auto-reconnects. Device continues on KVS config. Local control still works.
+- [x] Is 30 msg/min enough if we want periodic status reporting + commands?
+  > Answered in doc 03 §5 and doc 04 §7: Yes, typical usage is well under 5 msg/min. Worst-case burst analysis done.
+- [x] Fallback plan if Adafruit IO changes terms or shuts down?
+  > Answered in doc 02 §7 and doc 07 §7.2: Device runs on KVS config indefinitely. Physical button and local HTTP still work. Can migrate to a new broker.
 
 ### Local control
 
-- [ ] When on same wifi: direct HTTP to Shelly's local API, or still route via cloud broker?
-- [ ] Can we detect "am I local?" and prefer direct control?
-- [ ] What does the local control UX look like? (browser bookmark to device IP, simple web page?)
+- [x] When on same wifi: direct HTTP to Shelly's local API, or still route via cloud broker?
+  > Answered in doc 02 §1.2 and doc 06 §4: Direct HTTP. Auto-detect tries local first with 2s timeout, falls back to remote.
+- [x] Can we detect "am I local?" and prefer direct control?
+  > Answered in doc 06 §4.1: Yes, try local first (2s timeout), fall back to remote. Decision D06.49.
+- [x] What does the local control UX look like? (browser bookmark to device IP, simple web page?)
+  > Answered in doc 06 §§2-3: Native Android app (primary), HTML fallback page (secondary). Not a simple bookmark — proper app with auto-detect.
 - [ ] mDNS discovery: can the phone resolve `shellyplugsg3-XXXX.local`?
+  > Partially addressed in doc 06 §4.3: Decision was to use manual IP configuration (D06.50). mDNS discovery deferred as unnecessary given DHCP reservation.
 
 ### Edge cases and resilience
 
-- [ ] Wifi network change (moving house): how to reconfigure the plug?
-- [ ] What if the mJS script crashes? (Shelly has watchdog/auto-restart for scripts?)
-- [ ] What if the MQTT broker is down for days? (device continues on last known config from KVS)
-- [ ] Power outage recovery: KVS persists, but what state does the plug resume in?
-- [ ] Clock sync: NTP required for schedule-based logic — what if NTP unreachable? (previous project used NTP guard)
-- [ ] Adafruit IO API key rotation: how to update the key on the Shelly remotely?
+- [x] Wifi network change (moving house): how to reconfigure the plug?
+  > Answered in doc 07 §4.1: Shelly opens AP mode when wifi not found. Reconfigure via web UI.
+- [x] What if the mJS script crashes? (Shelly has watchdog/auto-restart for scripts?)
+  > Answered in doc 05 §14 and doc 08 §4: Firmware restarts the script if "run on startup" is enabled. Boots into OFF state (safe).
+- [x] What if the MQTT broker is down for days? (device continues on last known config from KVS)
+  > Answered in doc 02 §7: Correct — device uses KVS config, timer runs locally, physical button works. No remote control until broker returns.
+- [x] Power outage recovery: KVS persists, but what state does the plug resume in?
+  > Answered in doc 01 §5.2 and doc 05 §3: Always boots OFF. Timer does not survive reboot. Config loaded from KVS. Decision D05.41.
+- [x] Clock sync: NTP required for schedule-based logic — what if NTP unreachable? (previous project used NTP guard)
+  > Answered in doc 01 §5.4 and doc 05 §7: Schedule does not fire without NTP (fail-safe). MQTT commands rejected until first NTP sync. Physical button works without NTP.
+- [x] Adafruit IO API key rotation: how to update the key on the Shelly remotely?
+  > Answered in doc 04 §9.2 and doc 07 §5.1: Cannot be done remotely. Requires local wifi access via `Mqtt.SetConfig`. Decision D04.35.
 
 ---
 
@@ -331,12 +360,12 @@ From earlier project on the Shelly Plug S Gen3:
 
 | # | Decision | Rationale |
 |---|---|---|
-| 1 | No home server / hub | Simplicity, no maintenance, survives house moves |
-| 2 | Shelly Cloud excluded from core design | Command/control model doesn't fit autonomous async pattern |
-| 3 | MQTT as primary device protocol | Firmware-native, push-based, retained messages for async |
-| 4 | REST as primary phone protocol | No app install, works from browser/curl/shortcuts |
-| 5 | Hybrid MQTT+REST service needed | Adafruit IO leading candidate — same feeds, both protocols |
-| 6 | Device operates autonomously | Last known config from KVS, works without any connectivity |
+| D00.1 | No home server / hub | Simplicity, no maintenance, survives house moves |
+| D00.2 | Shelly Cloud excluded from core design | Command/control model doesn't fit autonomous async pattern |
+| D00.3 | MQTT as primary device protocol | Firmware-native, push-based, retained messages for async |
+| D00.4 | REST as primary phone protocol | No app install, works from browser/curl/shortcuts |
+| D00.5 | Hybrid MQTT+REST service needed | Adafruit IO leading candidate — same feeds, both protocols |
+| D00.6 | Device operates autonomously | Last known config from KVS, works without any connectivity |
 
 ---
 
