@@ -1,0 +1,60 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 17
+
+      - name: Set up Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Generate Gradle wrapper
+        working-directory: app
+        run: gradle wrapper
+
+      - name: Build debug APK
+        working-directory: app
+        run: ./gradlew assembleDebug
+
+      - name: Generate release notes
+        id: notes
+        run: |
+          PREVIOUS_TAG=$(git tag --sort=-creatordate | head -n 2 | tail -n 1)
+          if [ -z "$PREVIOUS_TAG" ] || [ "$PREVIOUS_TAG" = "${{ github.ref_name }}" ]; then
+            echo "body=Initial release." >> "$GITHUB_OUTPUT"
+          else
+            NOTES=$(git log --pretty=format:"- %s" "${PREVIOUS_TAG}..${{ github.ref_name }}")
+            # Use a delimiter for multi-line output
+            {
+              echo "body<<RELEASE_NOTES_EOF"
+              echo "Changes since ${PREVIOUS_TAG}:"
+              echo ""
+              echo "$NOTES"
+              echo "RELEASE_NOTES_EOF"
+            } >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: app/build/outputs/apk/debug/*.apk
+          body: ${{ steps.notes.outputs.body }}
+          generate_release_notes: false

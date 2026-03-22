@@ -1,5 +1,7 @@
 # Shelly Coffee Timer
 
+[![Build](https://github.com/Laffs2k5/shelly-coffee-timer/actions/workflows/build.yml/badge.svg)](https://github.com/Laffs2k5/shelly-coffee-timer/actions/workflows/build.yml)
+
 A safety-first home-automation project that turns a **Shelly Plug S Gen3** into a timed coffee-maker controller. Every on-state is a countdown timer — the plug can never be left on indefinitely. The device runs autonomously with an mJS state machine, accepts commands via MQTT through **Adafruit IO**, and is controllable from an Android app, a web page, or curl.
 
 **Live web control:** https://laffs2k5.github.io/shelly-coffee-timer/
