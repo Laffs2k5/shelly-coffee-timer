@@ -150,33 +150,96 @@ Build the script from doc 05, adding one capability at a time. Test each before 
 
 ---
 
-## Phase 5: Testing & Quality — NOT STARTED
+## Phase 5: Testing & Quality — IN PROGRESS
 
-**Goal:** Establish formal testing practices and clean up documentation debt. Future work.
+**Goal:** Establish formal testing practices and documentation cleanup.
 
-**Prerequisites:** Phase 3 complete (Phase 4 is independent — these can be done in either order).
+**Prerequisites:** Phase 3 complete.
+
+### 5A: Automated device test scripts
+
+Bash/curl scripts in `scripts/` that exercise the device API programmatically. Two categories:
+
+| # | Task | Description | Needs hardware? |
+|---|---|---|---|
+| 5A.1 | `test-local-api.sh` | Test all local HTTP endpoints (coffee_status, coffee_command with all cmds, error cases) | Yes (Shelly on wifi) |
+| 5A.2 | `test-remote-api.sh` | Test Adafruit IO REST endpoints (read/write feeds, command→heartbeat flow) | Yes (Shelly + AIO) |
+| 5A.3 | `test-staleness.sh` | Send commands with stale timestamps, verify rejection | Yes |
+| 5A.4 | `test-config.sh` | Post config updates, verify version gating and KVS persistence across reboot | Yes |
+| 5A.5 | `test-schedule.sh` | Set schedule for 2 min ahead, wait, verify fire + auto-disarm | Yes |
+| 5A.6 | `test-all.sh` | Runner that executes 5A.1–5A.5 in sequence with pass/fail summary | Yes |
+
+### 5B: AI-assisted test instructions
+
+A test instruction file (`docs/testing/AI-TEST-GUIDE.md`) that an AI agent can follow autonomously to verify system functionality. Includes:
+
+| # | Task | Description |
+|---|---|---|
+| 5B.1 | Device regression prompt | Step-by-step instructions an agent executes against live hardware (all Phase 2B tests) |
+| 5B.2 | Remote-only test prompt | Tests that only need Adafruit IO REST (no local wifi required) |
+| 5B.3 | Relay verification guide | How to use AC1/online sysfs to verify physical relay state |
+
+### 5C: Android app tests
+
+| # | Task | Description |
+|---|---|---|
+| 5C.1 | API unit tests | Test AdafruitApi parsing/serialization with mock HTTP responses |
+| 5C.2 | Config version logic tests | Verify read-increment-write, version gating |
+| 5C.3 | Auto-detect logic tests | Verify local-first with fallback, mode caching |
+
+### 5D: Manual regression checklist
+
+A human-readable checklist (`docs/testing/REGRESSION.md`) covering:
+
+| # | Task | Description |
+|---|---|---|
+| 5D.1 | Device checklist | Physical button, MQTT commands, local HTTP, schedule, boot safety |
+| 5D.2 | Android app checklist | Settings persistence, local/remote control, schedule UI, auto-detect |
+| 5D.3 | HTML page checklist | Credentials prompt, commands, schedule, auto-refresh, 24h format |
+| 5D.4 | Cross-platform checklist | Command from app → verify in HTML, and vice versa |
+
+### 5E: Documentation cleanup
+
+| # | Task | Description |
+|---|---|---|
+| 5E.1 | Decision renumbering | Resolve doc 08 §3.1 — adopt prefix scheme (D00.1, D02.7, etc.) across all spec docs |
+| 5E.2 | Doc 00 open questions audit | Resolve doc 08 §3.2 — mark answered questions with cross-references |
+
+**Status:** IN PROGRESS.
+
+---
+
+## Phase 6: CI/CD — NOT STARTED
+
+**Goal:** Automate builds, testing, and release publishing via GitHub Actions.
+
+**Prerequisites:** Phase 5 test scripts exist.
 
 ### Tasks
 
 | # | Task | Description |
 |---|---|---|
-| 5.1 | Manual regression test procedures | Document step-by-step test scripts for verifying all device, app, and web functionality |
-| 5.2 | Device API test scripts | Bash/curl scripts that exercise local HTTP and Adafruit IO REST endpoints programmatically |
-| 5.3 | AI-assisted test instructions | Prompts that an AI agent can execute to verify system functionality end-to-end |
-| 5.4 | Android app test suite | Unit tests for business logic, UI tests for Compose screens |
-| 5.5 | HTML page testing | Functional tests for the web control page |
-| 5.6 | End-to-end test scenarios | Full workflow tests: schedule fire, extend, expire, config change, multi-client |
-| 5.7 | Decision renumbering | Resolve doc 08 §3.1 — consolidate decision numbers across all spec docs |
-| 5.8 | Doc 00 open questions audit | Resolve doc 08 §3.2 — mark answered questions in doc 00 with cross-references |
+| 6.1 | APK build workflow | GitHub Actions: build debug APK on every push to main. Upload as artifact. |
+| 6.2 | Test scripts in CI | Run device API test scripts against mock/recorded responses (no real hardware in CI) |
+| 6.3 | Android unit tests in CI | Run 5C unit tests as part of the build workflow |
+| 6.4 | Release workflow | On git tag (e.g., `v1.0`): build APK, create GitHub Release, attach APK as asset |
+| 6.5 | Web deploy (already done) | Formalize the existing gh-pages workflow, ensure it runs on web/ changes only |
+| 6.6 | Build status badge | Add build status badge to README.md |
 
-**Status:** NOT STARTED — future work.
+### Gate: Phase 6 → Done
+
+- Push to main triggers build + tests
+- Tagged commit creates a GitHub Release with APK attached
+- README shows build status badge
+
+**Status:** NOT STARTED.
 
 ---
 
 ## What can be done in parallel
 
-- **Phase 4 and Phase 5** are independent of each other
-- **Doc cleanup** (items 5.7 and 5.8) can be done anytime
+- **Phase 5 and Phase 6** overlap: 6.1 (build workflow) can be done before tests exist; test integration (6.2, 6.3) needs Phase 5 scripts
+- **Doc cleanup** (5E.1, 5E.2) can be done anytime
 
 ---
 
