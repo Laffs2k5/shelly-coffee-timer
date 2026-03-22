@@ -145,8 +145,63 @@ Build the script from doc 05, adding one capability at a time. Test each before 
 ### Deferred
 
 - Loading spinner during connection/mode switch — future improvement
-- Notification when coffee maker is on — future investigation
 - PWA support — not planned
+
+### 4B: Coffee ON notification — IN PROGRESS
+
+**Goal:** Show a persistent, auto-updating notification while the coffee maker is on. Notification shows real remaining time, refreshed from the device, and disappears when coffee finishes.
+
+#### Architecture
+
+**Foreground service (only while coffee is ON):**
+
+1. App polls, detects `state=on` → starts `CoffeeNotificationService` (foreground service)
+2. Service polls the device every ~30s via local HTTP or Adafruit IO REST (same auto-detect logic as the app)
+3. Between polls, service counts down locally (1 min/min) for smooth display
+4. Notification text: "Coffee ON — 74 min remaining" (updated every poll)
+5. If service can't reach device for 5+ minutes → notification shows "Connection lost"
+6. When poll returns `state=off` → cancel notification, stop service (no more battery drain)
+
+**Schedule-aware wake-up:**
+
+1. Every time the app or service polls successfully: if `sch=1`, save `h` and `m` to SharedPreferences and schedule an `AlarmManager` wake-up for that time
+2. This catches schedules set from any client (other phone, HTML page) — the alarm is re-set on every successful poll
+3. `AlarmManager` fires at schedule time → starts the foreground service → service polls → detects ON → notification appears
+4. When app or service detects `sch=0` → cancel any pending alarm
+5. If alarm fires but poll shows device is still OFF (schedule didn't fire yet, or was disarmed) → retry a few times over 5 minutes, then give up and stop
+
+**Key property:** The service only exists while coffee is actively on. No background drain during the 99% of the time when the plug is off.
+
+#### Permissions needed
+
+```xml
+<uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+<uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+<uses-permission android:name="android.permission.FOREGROUND_SERVICE_CONNECTED_DEVICE" />
+<uses-permission android:name="android.permission.SCHEDULE_EXACT_ALARM" />
+```
+
+#### Components
+
+| Component | Purpose |
+|---|---|
+| `CoffeeNotificationService` | Foreground service that polls and updates notification |
+| `ScheduleAlarmReceiver` | BroadcastReceiver that starts the service when AlarmManager fires |
+| `NotificationHelper` | Creates channel, builds/updates/cancels notifications |
+| SharedPreferences keys | `schedule_h`, `schedule_m`, `schedule_enabled` — persisted from last poll |
+
+#### Rate limit impact
+
+- Service polls every 30s = 2 req/min (within 30/min budget)
+- App foreground polls 6/min + service 2/min = 8/min max (still fine)
+- Service stops when OFF → no ongoing rate usage
+
+#### Edge cases
+
+- App killed while coffee is ON → service survives independently (foreground services are protected from OOM kills)
+- Phone rebooted while coffee is ON → service doesn't restart (coffee timer on device also reset by power loss — both are in consistent state)
+- Schedule set from HTML/other phone → caught on next app open (alarm re-scheduled from poll data)
+- AlarmManager fires but coffee didn't start yet → service retries for 5 min, then stops
 
 ---
 
