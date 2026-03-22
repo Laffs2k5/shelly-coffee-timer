@@ -1,10 +1,16 @@
 package com.shellycoffee.timer
 
+import android.Manifest
+import android.app.ActivityManager
 import android.content.Context
+import android.content.Intent
 import android.content.SharedPreferences
+import android.content.pm.PackageManager
 import android.os.Bundle
 import androidx.activity.ComponentActivity
+import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.compose.setContent
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -17,11 +23,15 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.core.content.ContextCompat
 import androidx.core.view.WindowCompat
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
 import com.shellycoffee.timer.api.CoffeeApi
+import com.shellycoffee.timer.notification.CoffeeNotificationService
+import com.shellycoffee.timer.notification.NotificationHelper
+import com.shellycoffee.timer.notification.ScheduleAlarmManager
 import kotlinx.coroutines.*
 import java.text.SimpleDateFormat
 import java.util.*
@@ -29,6 +39,9 @@ import java.util.*
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+
+        // Create notification channel on first launch
+        NotificationHelper.createChannel(this)
 
         // Force dark status bar and navigation bar
         WindowCompat.setDecorFitsSystemWindows(window, true)
@@ -169,6 +182,20 @@ fun MainScreen(onNavigateToSettings: () -> Unit) {
     var scheduleHour by remember { mutableIntStateOf(6) }
     var scheduleMinute by remember { mutableIntStateOf(0) }
     var showTimePicker by remember { mutableStateOf(false) }
+    var notificationPermissionRequested by remember { mutableStateOf(false) }
+
+    val permissionLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.RequestPermission()
+    ) { granted ->
+        if (granted) {
+            // Permission granted — start service if coffee is on
+            if (status?.state == "on" && !isServiceRunning(context)) {
+                context.startForegroundService(
+                    Intent(context, CoffeeNotificationService::class.java)
+                )
+            }
+        }
+    }
 
     fun getPrefs(): Triple<String, String, String> {
         val ip = prefs.getString("shelly_ip", "") ?: ""
@@ -190,6 +217,33 @@ fun MainScreen(onNavigateToSettings: () -> Unit) {
                     scheduleEnabled = result.status!!.scheduleEnabled == 1
                     scheduleHour = result.status!!.scheduleHour
                     scheduleMinute = result.status!!.scheduleMinute
+
+                    // Start notification service if coffee is on
+                    if (result.status!!.state == "on" && !isServiceRunning(context)) {
+                        val hasPermission = ContextCompat.checkSelfPermission(
+                            context, Manifest.permission.POST_NOTIFICATIONS
+                        ) == PackageManager.PERMISSION_GRANTED
+
+                        if (hasPermission) {
+                            context.startForegroundService(
+                                Intent(context, CoffeeNotificationService::class.java)
+                            )
+                        } else if (!notificationPermissionRequested) {
+                            notificationPermissionRequested = true
+                            permissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
+                        }
+                    }
+
+                    // Manage schedule alarm
+                    if (result.status!!.scheduleEnabled == 1) {
+                        ScheduleAlarmManager.scheduleWakeUp(
+                            context,
+                            result.status!!.scheduleHour,
+                            result.status!!.scheduleMinute
+                        )
+                    } else {
+                        ScheduleAlarmManager.cancelWakeUp(context)
+                    }
                 }
             }
         }
@@ -479,4 +533,15 @@ fun MainScreen(onNavigateToSettings: () -> Unit) {
             }
         }
     }
+}
+
+private fun isServiceRunning(context: Context): Boolean {
+    val manager = context.getSystemService(ActivityManager::class.java)
+    @Suppress("DEPRECATION")
+    for (service in manager.getRunningServices(Int.MAX_VALUE)) {
+        if (service.service.className == CoffeeNotificationService::class.java.name) {
+            return true
+        }
+    }
+    return false
 }
