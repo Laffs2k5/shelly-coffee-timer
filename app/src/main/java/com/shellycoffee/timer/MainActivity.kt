@@ -192,6 +192,7 @@ fun MainScreen(onNavigateToSettings: () -> Unit) {
             if (status?.state == "on" && !isServiceRunning(context)) {
                 context.startForegroundService(
                     Intent(context, CoffeeNotificationService::class.java)
+                        .putExtra("remaining", status?.remaining ?: 0)
                 )
             }
         }
@@ -227,6 +228,7 @@ fun MainScreen(onNavigateToSettings: () -> Unit) {
                         if (hasPermission) {
                             context.startForegroundService(
                                 Intent(context, CoffeeNotificationService::class.java)
+                                    .putExtra("remaining", result.status?.remaining ?: 0)
                             )
                         } else if (!notificationPermissionRequested) {
                             notificationPermissionRequested = true
@@ -259,6 +261,13 @@ fun MainScreen(onNavigateToSettings: () -> Unit) {
                     status = result
                     lastUpdated = SimpleDateFormat("HH:mm:ss", Locale.getDefault())
                         .format(Date())
+                    // Update running notification service with new remaining time
+                    if (isServiceRunning(context)) {
+                        context.startForegroundService(
+                            Intent(context, CoffeeNotificationService::class.java)
+                                .putExtra("remaining", result.remaining)
+                        )
+                    }
                 }
                 sending = false
             }

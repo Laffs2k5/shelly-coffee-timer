@@ -17,16 +17,26 @@ class CoffeeNotificationService : Service() {
 
     override fun onBind(intent: Intent?): IBinder? = null
 
+    private var started = false
+
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
-        NotificationHelper.createChannel(this)
+        val newRemaining = intent?.getIntExtra("remaining", -1) ?: -1
+        if (newRemaining >= 0) {
+            remainingMin = newRemaining
+        }
 
-        // Start foreground immediately with a placeholder notification
-        startForeground(1, NotificationHelper.buildOngoing(this, 0))
-
-        // Do an immediate poll, then schedule recurring
-        pollDevice()
-        startPollTimer()
-        startCountdownTimer()
+        if (!started) {
+            // First start — go foreground and begin polling
+            started = true
+            NotificationHelper.createChannel(this)
+            startForeground(1, NotificationHelper.buildOngoing(this, remainingMin))
+            pollDevice()
+            startPollTimer()
+            startCountdownTimer()
+        } else {
+            // Already running — just update the notification with new data
+            NotificationHelper.showOngoing(this, remainingMin)
+        }
 
         return START_NOT_STICKY
     }
