@@ -184,7 +184,7 @@ object CoffeeApi {
                     hour = json.optInt("h", 6),
                     minute = json.optInt("m", 0),
                     duration = json.optInt("dur", 90),
-                    maxMinutes = json.optInt("max", 120)
+                    maxMinutes = json.optInt("max", 180)
                 )
             } else null
         } catch (_: Exception) {
