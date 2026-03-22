@@ -261,12 +261,19 @@ fun MainScreen(onNavigateToSettings: () -> Unit) {
                     status = result
                     lastUpdated = SimpleDateFormat("HH:mm:ss", Locale.getDefault())
                         .format(Date())
-                    // Update running notification service with new remaining time
+                    // Update or stop notification service
                     if (isServiceRunning(context)) {
-                        context.startForegroundService(
-                            Intent(context, CoffeeNotificationService::class.java)
-                                .putExtra("remaining", result.remaining)
-                        )
+                        if (result.state == "off") {
+                            // Stop service immediately on OFF command
+                            context.stopService(
+                                Intent(context, CoffeeNotificationService::class.java)
+                            )
+                        } else {
+                            context.startForegroundService(
+                                Intent(context, CoffeeNotificationService::class.java)
+                                    .putExtra("remaining", result.remaining)
+                            )
+                        }
                     }
                 }
                 sending = false
