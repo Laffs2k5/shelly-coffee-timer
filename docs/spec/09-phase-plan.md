@@ -150,7 +150,7 @@ Build the script from doc 05, adding one capability at a time. Test each before 
 
 ---
 
-## Phase 5: Testing & Quality — IN PROGRESS
+## Phase 5: Testing & Quality — DONE (2026-03-22)
 
 **Goal:** Establish formal testing practices and documentation cleanup.
 
@@ -209,7 +209,7 @@ A human-readable checklist (`docs/testing/REGRESSION.md`) covering:
 
 ---
 
-## Phase 6: CI/CD — NOT STARTED
+## Phase 6: CI/CD — DONE (2026-03-22)
 
 **Goal:** Automate builds, testing, and release publishing via GitHub Actions.
 
