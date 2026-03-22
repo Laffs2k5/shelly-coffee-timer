@@ -7,7 +7,9 @@ import android.content.Intent
 import android.content.SharedPreferences
 import android.content.pm.PackageManager
 import android.os.Bundle
+import android.provider.Settings
 import androidx.activity.ComponentActivity
+import android.net.Uri
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.compose.setContent
 import androidx.activity.result.contract.ActivityResultContracts
@@ -43,10 +45,20 @@ class MainActivity : ComponentActivity() {
         // Create notification channel on first launch
         NotificationHelper.createChannel(this)
 
+        // Request all permissions upfront
+        requestAppPermissions()
+
         // Force dark status bar and navigation bar
         WindowCompat.setDecorFitsSystemWindows(window, true)
         window.statusBarColor = android.graphics.Color.parseColor("#1A1A1A")
         window.navigationBarColor = android.graphics.Color.parseColor("#1A1A1A")
+
+        // Request exact alarm permission (opens system settings if not granted)
+        val alarmManager = getSystemService(android.app.AlarmManager::class.java)
+        if (!alarmManager.canScheduleExactAlarms()) {
+            startActivity(Intent(Settings.ACTION_REQUEST_SCHEDULE_EXACT_ALARM,
+                Uri.parse("package:$packageName")))
+        }
 
         setContent {
             MaterialTheme(
@@ -64,6 +76,14 @@ class MainActivity : ComponentActivity() {
             ) {
                 AppNavigation()
             }
+        }
+    }
+
+    private fun requestAppPermissions() {
+        // Request POST_NOTIFICATIONS (required on Android 13+)
+        if (ContextCompat.checkSelfPermission(this, Manifest.permission.POST_NOTIFICATIONS)
+            != PackageManager.PERMISSION_GRANTED) {
+            requestPermissions(arrayOf(Manifest.permission.POST_NOTIFICATIONS), 100)
         }
     }
 }
