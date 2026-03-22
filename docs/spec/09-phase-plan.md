@@ -260,7 +260,7 @@ A human-readable checklist (`docs/testing/REGRESSION.md`) covering:
 | 5E.1 | Decision renumbering | Resolve doc 08 §3.1 — adopt prefix scheme (D00.1, D02.7, etc.) across all spec docs |
 | 5E.2 | Doc 00 open questions audit | Resolve doc 08 §3.2 — mark answered questions with cross-references |
 
-**Status:** IN PROGRESS.
+**Status:** DONE.
 
 ---
 
@@ -287,7 +287,7 @@ A human-readable checklist (`docs/testing/REGRESSION.md`) covering:
 - Tagged commit creates a GitHub Release with APK attached
 - README shows build status badge
 
-**Status:** NOT STARTED.
+**Status:** DONE.
 
 ---
 

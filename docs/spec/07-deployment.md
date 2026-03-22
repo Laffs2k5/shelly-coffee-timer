@@ -20,14 +20,15 @@ This document covers the operational lifecycle: how to get the system running, h
 - Connect to wifi via Shelly's AP mode or web UI
 - Configure MQTT via `Mqtt.SetConfig` (doc 04 §4.1)
 - Reboot, verify `Mqtt.GetStatus` shows connected
-- Upload the mJS script via web UI (Settings → Scripts)
-- Enable "run on startup"
+- Upload the mJS script via web UI (Settings → Scripts) or via RPC (`Script.Create` + `Script.PutCode` + `Script.Start` + `Script.SetConfig`)
+- Enable "run on startup" (or set `enable: true` via `Script.SetConfig`)
 - Test with a manual command from curl or the phone
 
 ### 2.3 Phone (Android app)
 
-- Build APK in Android Studio
+- Build APK in Android Studio, or download from GitHub Actions artifacts / Releases
 - Sideload onto phone(s)
+- Grant notification permission when prompted (for the "Coffee ON" notification)
 - Enter Shelly IP, AIO username, AIO key in settings
 - Verify status shows up, buttons work
 
@@ -41,13 +42,17 @@ This document covers the operational lifecycle: how to get the system running, h
 
 ## 3. Updating the mJS script
 
-The script lives on the Shelly and is edited via the device's web UI (Settings → Scripts). There is no automated deployment pipeline — this is a single device, not a fleet.
+The script lives on the Shelly. Two methods for updating:
 
-**Process:** Edit in a local text editor, paste into the Shelly web UI, save, restart the script. The web UI provides a console log for debugging.
+**Method A: Web UI (manual).** Paste into the Shelly web UI (Settings → Scripts), save, restart. The web UI provides a console log for debugging.
 
-**Version tracking:** Keep the script in a git repo alongside these docs. The repo is the source of truth; the device has the running copy.
+**Method B: RPC upload (scriptable).** Use `Script.Stop` + `Script.PutCode` + `Script.Start` via HTTP RPC calls. Large scripts need chunked upload with `append: true`. See `docs/testing/AI-TEST-GUIDE.md` §4 for the full procedure. Remember to replace `YOUR_AIO_USERNAME` in the script before uploading.
 
-**Rollback:** The Shelly doesn't version scripts. If an update breaks things, paste the previous version from git. Worst case, the plug is off and safe — a broken script can't leave the coffee maker on because the switch defaults to off on script restart.
+**Version tracking:** The git repo is the source of truth; the device has the running copy.
+
+**Rollback:** The Shelly doesn't version scripts. If an update breaks things, upload the previous version from git. Worst case, the plug is off and safe — a broken script can't leave the coffee maker on because the switch defaults to off on script restart.
+
+**CI/CD:** The APK is built automatically on push to `main` (GitHub Actions). Tagged commits create GitHub Releases with the APK attached. The web control page is deployed to GitHub Pages automatically. There is no automated device script deployment — the Shelly is a single device, not a fleet.
 
 ---
 

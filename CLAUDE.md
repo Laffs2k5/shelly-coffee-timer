@@ -19,11 +19,14 @@ Safety-first: every "on" state is a countdown (max 180 min). Power loss = OFF. S
 ## Key directories
 
 - `docs/spec/` — Specification documents (00-10). The design blueprint, mostly static.
-- `docs/` — Operational docs (grows over time, largely empty now).
-- `device/` — Single mJS script, pasted into Shelly web UI manually.
-- `app/` — Android Studio project.
-- `web/` — Self-contained HTML control page.
+- `docs/testing/` — Test guides: AI-TEST-GUIDE.md (automated), REGRESSION.md (manual checklist).
+- `docs/` — Operational docs: ARCHITECTURE.md (system diagram and flows).
+- `device/` — Single mJS script, uploaded via RPC or pasted into Shelly web UI.
+- `app/` — Android Studio project (Kotlin/Compose).
+- `app/.../notification/` — Foreground notification service (4 files).
+- `web/` — Self-contained HTML control page (deployed to GitHub Pages).
 - `scripts/` — Bash utilities for feed setup, testing, sending commands.
+- `.github/workflows/` — CI/CD: APK build, release, GitHub Pages deploy.
 
 ## Credentials
 
@@ -87,17 +90,55 @@ Adafruit IO does NOT support MQTT retain. Workaround: `/get` topic on connect.
   ```
 - Feature branches for experimental or breaking work.
 
+## CI/CD
+
+GitHub Actions workflows in `.github/workflows/`:
+
+- **build.yml** — Builds debug APK on every push to `main`. APK uploaded as GitHub Actions artifact (downloadable from the workflow run page).
+- **release.yml** — On push of a `v*` tag: builds APK, generates changelog from commits, creates GitHub Release with APK attached.
+- **deploy-pages.yml** — Deploys `web/` to GitHub Pages on push to `main` (only when `web/**` changes).
+
+### Downloading APKs
+
+- **Latest build:** Go to the [Actions tab](https://github.com/Laffs2k5/shelly-coffee-timer/actions/workflows/build.yml), click the most recent run, scroll to "Artifacts", download `debug-apk`.
+- **Release builds:** Go to [Releases](https://github.com/Laffs2k5/shelly-coffee-timer/releases), download the APK from the latest release.
+
+## Notification service
+
+The Android app includes a foreground notification service (`notification/` package, 4 files):
+
+| Component | Purpose |
+|-----------|---------|
+| `CoffeeNotificationService` | Foreground service that polls device every 30s, shows "Coffee ON -- N min remaining" notification, self-stops when coffee turns off |
+| `NotificationHelper` | Creates notification channel, builds/updates/cancels notifications |
+| `ScheduleAlarmManager` | Sets `AlarmManager` exact alarm for scheduled coffee time, starts notification service when alarm fires |
+| `ScheduleAlarmReceiver` | `BroadcastReceiver` that starts the service on alarm fire |
+
+Key behavior:
+- Service only runs while coffee is actively ON (no background drain when off).
+- Between polls, service counts down locally (1 min/min) for smooth display.
+- After 10 consecutive poll failures (~5 min), notification shows "Connection lost".
+- Schedule alarm is re-armed on every successful poll where `sch=1`, catching schedules set from any client.
+
 ## Testing
 
-No CI/CD. Manual testing against real hardware.
+Test scripts in `scripts/` run against real hardware:
 
 ```bash
 source .env
-scripts/test-rest.sh       # REST API round-trip
-scripts/test-mqtt.sh       # MQTT connectivity
-scripts/setup-feeds.sh     # Create Adafruit IO feeds
+scripts/test-all.sh          # Run all tests in sequence
+scripts/test-local-api.sh    # Test local HTTP endpoints
+scripts/test-remote-api.sh   # Test Adafruit IO REST endpoints
+scripts/test-staleness.sh    # Verify stale command rejection
+scripts/test-config.sh       # Config version gating
+scripts/test-schedule.sh     # Schedule fire + auto-disarm
+scripts/test-rest.sh         # REST API round-trip
+scripts/test-mqtt.sh         # MQTT connectivity
+scripts/setup-feeds.sh       # Create Adafruit IO feeds
 scripts/send-command.sh t90  # Send a test command
 ```
+
+All test scripts support `--dry-run` mode for safe review. See `docs/testing/AI-TEST-GUIDE.md` for AI agent instructions and `docs/testing/REGRESSION.md` for the manual checklist.
 
 ## Development environment
 
@@ -129,3 +170,9 @@ Full specification: `docs/spec/INDEX.md`. Key docs by topic:
 - Device state machine: `docs/spec/05-state-machine.md`
 - Phone interface: `docs/spec/06-phone-interface.md`
 - Phase plan: `docs/spec/09-phase-plan.md`
+
+Operational docs:
+
+- Architecture overview: `docs/ARCHITECTURE.md`
+- AI test guide: `docs/testing/AI-TEST-GUIDE.md`
+- Manual regression: `docs/testing/REGRESSION.md`

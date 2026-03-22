@@ -4,7 +4,7 @@
 
 ## Project status
 
-All three implementation phases are complete. The system is live and working: device script running on the Shelly, Android app sideloaded, web control page hosted on GitHub Pages. See doc 09 for the full phase plan, including future phases 4 (UI Polish) and 5 (Testing & Quality).
+All six phases are complete. The system is live and working: device script running on the Shelly, Android app with notification service, web control page on GitHub Pages, CI/CD pipeline for builds and releases. See doc 09 for the full phase plan. For a high-level system overview, see `docs/ARCHITECTURE.md`.
 
 ## Project summary
 
@@ -110,9 +110,9 @@ Also includes Phase 2 implementation lessons (§4): timer limits, call concurren
 ### 09 — Phase Plan
 `09-phase-plan.md`
 
-How to get from docs to a working system. Five phases: prove the unknowns (Phase 1 — DONE), build the device side (Phase 2 — DONE), build the phone side (Phase 3 — DONE), UI polish (Phase 4 — future), testing and quality (Phase 5 — future). Each phase has a gate with explicit pass criteria. Includes an incremental test matrix for each stage and a risk-adjusted time estimate.
+How to get from docs to a working system. Six phases, all complete: prove the unknowns (Phase 1), build the device side (Phase 2), build the phone side (Phase 3), UI polish with notification service (Phase 4), testing and quality (Phase 5), CI/CD pipeline (Phase 6). Each phase has a gate with explicit pass criteria.
 
-**Key content:** Phase 1 blockers (§ tasks 1.1, 1.2), stage 2B incremental build order with 13 test steps, stage 3A app build order with 12 test steps, Phase 4 UI improvements, Phase 5 testing and doc cleanup tasks.
+**Key content:** Phase 1 blockers (§ tasks 1.1, 1.2), stage 2B incremental build order with 13 test steps, stage 3A app build order with 12 test steps, Phase 4B notification service architecture, Phase 5 test scripts and docs, Phase 6 GitHub Actions workflows.
 
 ---
 

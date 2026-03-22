@@ -94,6 +94,16 @@ Use this checklist before releases, after script changes, or after major configu
 ### App icon
 - [ ] Custom launcher icon visible (coffee cup with timer)
 
+### Notification service
+- [ ] When coffee turns ON: persistent notification appears ("Coffee ON -- N min remaining")
+- [ ] Notification countdown updates (decrements each minute between polls)
+- [ ] Notification updates to actual remaining time after each 30s poll
+- [ ] When coffee turns OFF: notification disappears, service stops
+- [ ] Kill app while coffee is ON: notification persists (foreground service survives)
+- [ ] Schedule alarm: set schedule, wait for fire time, notification appears automatically
+- [ ] Connection lost: after ~5 min without contact, notification shows "Connection lost"
+- [ ] Notification permission: prompted on first coffee ON event if not granted
+
 ---
 
 ## HTML Page (web/index.html)

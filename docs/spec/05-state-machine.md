@@ -56,51 +56,44 @@ These are stored in the Shelly's Key-Value Store and loaded on boot. They repres
 On device power-up or reboot, the script runs through this sequence:
 
 ```
-1.  Load config from KVS
-      KVS.get("cfg_v") → cfg_v (default 0 if missing)
-      KVS.get("cfg_sch") → cfg_sch (default 0)
-      KVS.get("cfg_h") → cfg_h (default 6)
-      KVS.get("cfg_m") → cfg_m (default 0)
-      KVS.get("cfg_dur") → cfg_dur (default 90)
-      KVS.get("cfg_max") → cfg_max (default 180)
+1.  Load config from KVS (sequentially chained — see §11.1)
+      KVS.Get("cfg_v") → cfg_v (default 0 if missing)
+      KVS.Get("cfg_sch") → cfg_sch (default 0)
+      KVS.Get("cfg_h") → cfg_h (default 6)
+      KVS.Get("cfg_m") → cfg_m (default 0)
+      KVS.Get("cfg_dur") → cfg_dur (default 90)
+      KVS.Get("cfg_max") → cfg_max (default 180)
+      Each callback triggers the next load. On completion → boot_complete()
 
-2.  Initialize in-memory state
-      sw_on = false
-      remain = 0
-      mode = ""
-      last_ack = ""
-      ntp_synced = false
-
-3.  Ensure switch is OFF
+2.  Ensure switch is OFF
       Shelly.call("Switch.Set", {id: 0, on: false})
       (Safety: plug always boots off, regardless of previous state)
 
-4.  Register event handlers
-      Physical button → on_button()
-      MQTT status change → on_mqtt_connect()
-
-5.  Register MQTT subscriptions
+3.  Register MQTT subscriptions
       MQTT.subscribe(TOPIC_CMD, on_mqtt_command)
       MQTT.subscribe(TOPIC_CFG, on_mqtt_config)
 
-6.  Start timer tick (runs every TICK_SEC)
-      Timer.set(TICK_SEC * 1000, true, on_tick)
+4.  Start single main loop timer (30s repeating)
+      Timer.set(30000, true, main_loop)
+      Handles: tick countdown, schedule check, periodic heartbeat, MQTT init
 
-7.  Start heartbeat timer
-      Timer.set(HB_OFF_SEC * 1000, true, on_heartbeat_timer)
+5.  Register combined status handler
+      Shelly.addStatusHandler watches for:
+        - sys: NTP sync detection (unixtime > 1700000000)
+        - mqtt: MQTT connect → fetch config via /get, publish heartbeat
+        - switch:0: physical button detection (via script_switching flag)
 
-8.  Start schedule checker (runs every 30 seconds)
-      Timer.set(30000, true, on_schedule_check)
+6.  Register local HTTP endpoints (HTTPServer.registerEndpoint)
+      coffee_status  → /script/1/coffee_status
+      coffee_command → /script/1/coffee_command
 
-9.  Register local HTTP endpoints (HTTPServer.registerEndpoint)
-      Register coffee_command handler → /script/1/coffee_command
-      Register coffee_status handler  → /script/1/coffee_status
-
-10. Wait for NTP sync (passive — checked by event handler)
-      Shelly.addStatusHandler → on NTP sync, set ntp_synced = true
+7.  Check if NTP already synced at boot
+      (status handler only catches changes, not existing state)
 ```
 
-**KVS loading is asynchronous in mJS.** Each `KVS.get()` takes a callback. The boot sequence must chain these or use a counter to track when all values are loaded before proceeding. This is an mJS limitation — no promises, no async/await.
+**KVS loading is asynchronous and sequentially chained.** Each `KVS.Get()` callback triggers the next load. Parallel calls are avoided because >3 concurrent `Shelly.call()` crashes the runtime (see doc 08 §4.2).
+
+**A single 30-second timer handles all periodic tasks** via counter-based dispatch. The spec originally designed separate timers for tick, heartbeat, and schedule, but the mJS runtime supports only ~4-5 concurrent timers (see doc 08 §4.1). The consolidated approach is both more efficient and more reliable.
 
 **The switch is forced OFF on boot** regardless of what KVS says or what the switch's hardware state is. This implements the power-loss safety rule (doc 01 §5.2): a power interruption kills the session.
 
@@ -108,19 +101,26 @@ On device power-up or reboot, the script runs through this sequence:
 
 ## 4. Event handlers
 
-### 4.1 Physical button — `on_button()`
+### 4.1 Physical button detection
 
-Triggered by the Shelly's `Input` component event when the physical button is pressed.
+> **Implementation note:** The Plug S Gen3 has no separate Input component. The physical button toggles the switch directly in firmware — there is no `single_push` or `btn_down` event. Both button presses and `Switch.Set` calls fire the same `switch:0` status change. The script uses a `script_switching` flag to distinguish script-initiated changes from physical button presses. See §7 for the status handler implementation.
+
+When a physical button press is detected (status change with `script_switching=false`):
 
 ```
-on_button():
-  if sw_on:
-    turn_off()
-  else:
-    turn_on(cfg_dur, "manual")
+if output == true:    (button turned switch ON)
+    remain = cfg_dur * 60
+    mode = "manual"
+    sw_on = true
+else:                 (button turned switch OFF)
+    remain = 0
+    mode = ""
+    sw_on = false
+last_ack = "btn"
+publish_heartbeat()
 ```
 
-No NTP check. No staleness check. No connectivity required. The physical button always works.
+No NTP check. No staleness check. No connectivity required. The physical button always works. The firmware toggles the switch before the script sees the event, so the script only syncs its state variables — it does not need to call `Switch.Set`.
 
 ### 4.2 MQTT command — `on_mqtt_command(topic, message)`
 
@@ -195,69 +195,47 @@ on_mqtt_connect():
 
 Subscriptions are registered once at boot (step 5 in boot sequence). The Shelly firmware maintains them across reconnections — no need to re-subscribe on connect.
 
-### 4.5 Timer tick — `on_tick()`
+### 4.5 Consolidated main loop
 
-Runs every `TICK_SEC` seconds (60s). This is the countdown engine.
-
-```
-on_tick():
-  if not sw_on → return
-
-  remain = remain - TICK_SEC
-  if remain < 0:
-    remain = 0
-
-  if remain <= 0:
-    turn_off()
-    publish_heartbeat()
-```
-
-The tick runs unconditionally (even while off) for simplicity. The `if not sw_on` guard makes it a no-op when off, avoiding the complexity of creating/destroying timers on state changes.
-
-**Precision:** The timer counts in seconds internally but reports minutes to the phone. This gives smooth countdown behavior without over-reporting. The `remain` value is floored to whole minutes for heartbeat reporting: `Math.floor(remain / 60)`.
-
-### 4.6 Heartbeat timer — `on_heartbeat_timer()`
-
-Runs periodically. The interval changes based on switch state.
+> **Implementation note:** The spec originally designed separate timers for tick (60s), heartbeat (variable), and schedule check (30s). The mJS runtime only supports ~4-5 concurrent timers (doc 08 §4.1), so these are consolidated into a single 30-second repeating timer with counter-based dispatch.
 
 ```
-on_heartbeat_timer():
-  publish_heartbeat()
+main_loop():   (runs every 30 seconds)
+    // --- Tick countdown (every 2 cycles = 60s) ---
+    tick_counter++
+    if tick_counter >= 2:
+        tick_counter = 0
+        if sw_on:
+            remain -= 60
+            if remain <= 0: turn_off(); publish_heartbeat()
+
+    // --- Heartbeat (counter-based interval) ---
+    hb_elapsed += 30
+    interval = 300 if sw_on else 900
+    if hb_pending OR hb_elapsed >= interval:
+        do_publish_heartbeat(false)
+
+    // --- Schedule check (every cycle = 30s) ---
+    if cfg_sch == 1 AND ntp_synced AND !sw_on:
+        d = new Date()
+        if d.getHours() == cfg_h AND d.getMinutes() == cfg_m:
+            cfg_sch = 0; KVS.set("cfg_sch", 0)
+            turn_on(cfg_dur, "sch")
+            publish_heartbeat()
+
+    // --- MQTT init (once, ~30s after boot) ---
+    if !mqtt_init_done:
+        mqtt_init_done = true
+        if MQTT connected: on_mqtt_connect()
 ```
 
-The interval is `HB_ON_SEC` (5 min) while on and `HB_OFF_SEC` (15 min) while off. Since mJS `Timer.set` doesn't support changing intervals on a repeating timer easily, there are two approaches:
+**30-second check interval** ensures we never miss the schedule minute window. Since we check hour:minute twice per minute, we always catch the target minute.
 
-**Option A (simple):** Use a single timer at the shorter interval (60 seconds) and track elapsed time in a counter. Publish when the counter exceeds the appropriate threshold.
+**Preventing double-fire:** The schedule is disarmed immediately when it fires. Even if the check runs again within the same minute, `cfg_sch` will be 0.
 
-**Option B (cleaner):** Use a non-repeating timer. Each time it fires, publish the heartbeat and set a new one-shot timer with the appropriate interval based on current state.
+**Timezone:** `new Date().getHours()` / `.getMinutes()` returns local time, DST-aware via the Shelly's configured IANA timezone (e.g., `Europe/Oslo`).
 
-Option B is recommended — it avoids waking up every 60 seconds while off (saves power in eco mode) and keeps the logic explicit.
-
-### 4.7 Schedule check — `on_schedule_check()`
-
-Runs every 30 seconds. Checks if the scheduled time has arrived.
-
-```
-on_schedule_check():
-  if cfg_sch !== 1 → return (schedule not armed)
-  if not ntp_synced → return (no clock, fail safe)
-
-  now = get_localtime()   // needs timezone-aware time
-  if now.hour === cfg_h and now.minute === cfg_m:
-    // Disarm schedule (before turning on, to prevent re-fire)
-    cfg_sch = 0
-    KVS.set("cfg_sch", 0)
-
-    // Turn on
-    turn_on(cfg_dur, "sch")
-    publish_heartbeat()
-```
-
-**30-second check interval** ensures we don't miss the minute window. Since we only check hour:minute (not seconds), and the check runs twice per minute, we'll always catch the target minute.
-
-**Preventing double-fire:** The schedule is disarmed immediately when it fires. Even if the check runs again within the same minute, `cfg_sch` will be 0 and the check short-circuits.
-
-**Timezone:** The Shelly's `Sys.GetStatus` provides local time based on the configured timezone. The schedule uses local time — the user sets "06:10" meaning 06:10 in their timezone.
+**Timer precision:** The countdown decrements by 60 seconds every 2 cycles. The `remain` value is tracked in seconds internally but reported as minutes via `Math.floor(remain / 60)`.
 
 ---
 
@@ -277,8 +255,13 @@ turn_on(duration_min, new_mode):
   mode = new_mode
   sw_on = true
 
-  Shelly.call("Switch.Set", {id: 0, on: true})
+  script_switching = true
+  Shelly.call("Switch.Set", {id: 0, on: true}, callback {
+    script_switching = false
+  })
 ```
+
+The `script_switching` flag prevents the status handler from interpreting this `Switch.Set` as a physical button press. See §4.1 and §7.
 
 ### 5.2 `turn_off()`
 
@@ -290,7 +273,10 @@ turn_off():
   mode = ""
   sw_on = false
 
-  Shelly.call("Switch.Set", {id: 0, on: false})
+  script_switching = true
+  Shelly.call("Switch.Set", {id: 0, on: false}, callback {
+    script_switching = false
+  })
 ```
 
 ### 5.3 `execute_command(cmd)`
@@ -299,8 +285,11 @@ Processes a command code. Used by both MQTT and local HTTP paths.
 
 ```
 execute_command(cmd):
-  if cmd === "on" or cmd === "t90":
+  if cmd === "on":
     turn_on(cfg_dur, "remote")
+
+  else if cmd === "t90":
+    turn_on(90, "remote")
 
   else if cmd === "off":
     if sw_on:
@@ -321,7 +310,7 @@ execute_command(cmd):
         turn_off()
 ```
 
-**Note on `on` vs `t90`:** Both call `turn_on(cfg_dur, "remote")`. They are functionally identical as stated in doc 03 decision D03.25. The script treats them the same.
+**Note on `on` vs `t90`:** In the implementation, `on` uses `cfg_dur` (configurable default duration, typically 90) while `t90` always uses a hardcoded 90 minutes. This diverges from the original spec (doc 03 decision D03.25) which stated they were identical. The distinction is intentional: `on` respects the user's configured default, while `t90` is a fixed 90-minute timer regardless of config.
 
 **Note on `ext` while off:** Turns on with 30 minutes, not `cfg_dur`. This matches doc 01 §3.2 — the +30 button while off starts a 30-minute session.
 
@@ -530,11 +519,25 @@ These publish immediately when something happens:
 | On | Every 5 min | Keeps `r` (remaining) reasonably current |
 | Off | Every 15 min | "I'm alive" — updates `ts` for last-seen |
 
-### 9.3 Deduplication
+### 9.3 Debounce with pending flush
 
-Multiple triggers can fire close together (e.g., command processed + state change). To avoid publishing 3 heartbeats in one second, use a simple debounce: after publishing, set a `hb_cooldown` flag and clear it after 2 seconds. If `publish_heartbeat()` is called during cooldown, skip it (the previous heartbeat already has the latest state).
+Multiple triggers can fire close together (e.g., command processed + state change). To avoid publishing 3 heartbeats in one second, the implementation uses a 2-second debounce with a `hb_pending` flag:
 
-Exception: the MQTT-connect heartbeat should always publish (it might be the first message after a long offline period).
+```
+do_publish_heartbeat(force):
+    if !ntp_synced: return
+    if !force AND (now - hb_last_ts < 2):
+        hb_pending = true       ← mark for later flush
+        return
+    hb_pending = false
+    hb_last_ts = now
+    MQTT.publish(heartbeat)
+    hb_elapsed = 0
+```
+
+The `hb_pending` flag is checked in the main_loop (every 30s). If set, the deferred heartbeat is flushed, ensuring no state change goes unreported for more than 30 seconds.
+
+The `force` parameter (used by the MQTT-connect heartbeat via `do_publish_heartbeat(true)`) bypasses the debounce — this ensures a fresh snapshot is published after reconnection.
 
 ---
 
@@ -569,28 +572,29 @@ If the device boots without internet (wifi only, or no wifi), it loads config fr
 
 ### 11.1 KVS loading is asynchronous
 
-Every `KVS.get(key, callback)` is async. The boot sequence must handle this. Pattern:
+Every `KVS.Get(key, callback)` is async. The boot sequence chains them sequentially to avoid the "too many calls in progress" crash (see doc 08 §4.2). Pattern:
 
 ```javascript
-let boot_count = 0;
-let BOOT_TOTAL = 6;  // number of KVS keys to load
+let kvs_keys = ["cfg_v", "cfg_sch", "cfg_h", "cfg_m", "cfg_dur", "cfg_max"];
+let kvs_idx = 0;
 
-function on_kvs_loaded(key, value) {
-  if (key === "cfg_v") cfg_v = value || 0;
-  if (key === "cfg_sch") cfg_sch = value || 0;
-  // ... etc
-  boot_count++;
-  if (boot_count === BOOT_TOTAL) {
+function load_next_kvs() {
+  if (kvs_idx >= kvs_keys.length) {
     boot_complete();
+    return;
   }
+  let key = kvs_keys[kvs_idx];
+  kvs_idx = kvs_idx + 1;
+  Shelly.call("KVS.Get", {key: key}, function(res, err) {
+    set_kvs_val(key, res ? res.value : null);
+    load_next_kvs();
+  });
 }
-
-KVS.get("cfg_v", function(v) { on_kvs_loaded("cfg_v", v); });
-KVS.get("cfg_sch", function(v) { on_kvs_loaded("cfg_sch", v); });
-// ... etc
 ```
 
-`boot_complete()` then registers event handlers, starts timers, and ensures the switch is off.
+Each callback triggers the next load. When all keys are loaded, `boot_complete()` registers event handlers, starts the timer, and ensures the switch is off.
+
+**Similarly, KVS saves use a sequential queue** (`save_queue` + `save_next()`) to avoid concurrent `Shelly.call()` crashes when multiple config values change at once.
 
 ### 11.2 JSON.parse safety
 
@@ -754,12 +758,12 @@ Internet returns:
 | # | Decision | Rationale |
 |---|---|---|
 | D05.36 | Timer counts in seconds internally, reports minutes externally | Cleaner arithmetic; future-proof for finer reporting if needed |
-| D05.37 | Single 60-second tick timer for countdown | Sufficient precision for a coffee maker; minimizes timer overhead on ESP32 |
-| D05.38 | One-shot heartbeat timer (re-armed with appropriate interval) | Avoids 60-second wake-ups while off; adapts interval to on/off state |
+| D05.37 | Single 30-second main loop timer handles tick, heartbeat, and schedule | mJS limits ~4-5 concurrent timers; counter-based dispatch avoids crashes (see doc 08 §4.1) |
+| D05.38 | Heartbeat interval via elapsed-time counter (300s on, 900s off) | Counter-based within main loop; `hb_pending` flag flushes deferred heartbeats |
 | D05.39 | Schedule checker runs every 30 seconds | Ensures we never miss the target minute; negligible CPU cost |
 | D05.40 | Heartbeat debounce: 2-second cooldown after publishing | Prevents burst of heartbeats when multiple events fire simultaneously |
 | D05.41 | Boot always forces switch OFF | Power-loss safety (doc 01 §5.2); no timer state survives reboot |
-| D05.42 | KVS loading uses counter-based callback pattern | mJS has no promises; counter tracks when all async loads complete |
+| D05.42 | KVS loading uses sequential chaining pattern | mJS has no promises; each callback triggers the next load to avoid concurrent call crashes |
 | D05.43 | Local HTTP commands have no staleness check and no NTP dependency | Synchronous path — no intermediary, no delay possible (doc 01 §5.4, doc 02 decision D02.17) |
 | D05.44 | Config version comparison is strictly greater-than | Prevents replaying old config; phone must always increment `v` |
 | D05.45 | `ntp_synced` is one-way (false → true, never back to false) | Per doc 01 §5.4: single sync is sufficient for session lifetime |
@@ -769,12 +773,14 @@ Internet returns:
 
 ## 16. Open items for implementation
 
-- [ ] Confirm `Shelly.getComponentStatus("sys").unixtime` availability and behavior before/after NTP sync
-- [x] ~~Confirm how to get timezone-aware local hour/minute from mJS~~ — `new Date().getHours()/getMinutes()` works, DST-aware via IANA tz
-- [ ] Test `MQTT.subscribe()` persistence across reconnects (does firmware re-subscribe automatically?)
-- [x] ~~Test `Shelly.addRPCHandler()`~~ — does not exist. Use `HTTPServer.registerEndpoint()` instead. Doc 05 §6 updated.
-- [ ] Measure RAM usage after script initialization — verify headroom for JSON parsing
-- [ ] Test KVS.get behavior when key doesn't exist (returns `undefined`? `null`? calls error callback?)
-- [ ] Determine if `Shelly.addStatusHandler` fires for NTP sync events specifically, or if we need to poll
-- [ ] Test script auto-restart behavior when "run on startup" is enabled — does it restart on crash?
-- [ ] Write the actual mJS script (doc 05 is the design; implementation is a separate step)
+All items resolved during Phase 2 implementation:
+
+- [x] ~~Confirm `Shelly.getComponentStatus("sys").unixtime` availability~~ — works; returns 0 before NTP sync, valid epoch after
+- [x] ~~Confirm timezone-aware local time in mJS~~ — `new Date().getHours()/getMinutes()` works, DST-aware via IANA tz
+- [x] ~~Test `MQTT.subscribe()` persistence across reconnects~~ — firmware re-subscribes automatically
+- [x] ~~Test `Shelly.addRPCHandler()`~~ — does not exist. Use `HTTPServer.registerEndpoint()` instead
+- [x] ~~Measure RAM usage~~ — script uses ~4-6 KB, with ~4 KB free (see `Script.GetStatus` mem_used/mem_free)
+- [x] ~~Test KVS.Get when key doesn't exist~~ — callback receives `res` with no `value` field; defaults used
+- [x] ~~Test `Shelly.addStatusHandler` for NTP~~ — fires on `sys` component with `delta.unixtime`; also check at boot
+- [x] ~~Test script auto-restart~~ — firmware restarts script automatically with "run on startup" enabled
+- [x] ~~Write the mJS script~~ — `device/coffee.js` implements the full state machine

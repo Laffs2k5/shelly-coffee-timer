@@ -17,12 +17,13 @@ A safety-first home-automation project that turns a **Shelly Plug S Gen3** into 
 
 ```
 shelly-coffee-timer/
-├── app/               Android app (Kotlin/Compose)
+├── app/               Android app (Kotlin/Compose) with notification service
 ├── device/            mJS script for the Shelly (coffee.js)
 ├── web/               HTML control page (GitHub Pages)
 ├── scripts/           Bash utilities (feed setup, REST/MQTT testing)
 ├── docs/spec/         Specification documents (00–10 + INDEX)
-├── .github/workflows/ GitHub Pages deployment
+├── docs/              Architecture overview, test guides
+├── .github/workflows/ CI/CD: APK build, release, GitHub Pages deploy
 ├── .env.example       Template for credentials
 └── CLAUDE.md          AI assistant context
 ```
