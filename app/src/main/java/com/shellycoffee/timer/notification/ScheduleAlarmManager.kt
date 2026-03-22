@@ -12,6 +12,10 @@ object ScheduleAlarmManager {
 
     fun scheduleWakeUp(context: Context, hour: Int, minute: Int) {
         val alarmManager = context.getSystemService(AlarmManager::class.java)
+
+        // On Android 12+, exact alarms require explicit user permission
+        if (!alarmManager.canScheduleExactAlarms()) return
+
         val pendingIntent = getPendingIntent(context)
 
         // Cancel any existing alarm first
@@ -29,11 +33,15 @@ object ScheduleAlarmManager {
             }
         }
 
-        alarmManager.setExactAndAllowWhileIdle(
-            AlarmManager.RTC_WAKEUP,
-            calendar.timeInMillis,
-            pendingIntent
-        )
+        try {
+            alarmManager.setExactAndAllowWhileIdle(
+                AlarmManager.RTC_WAKEUP,
+                calendar.timeInMillis,
+                pendingIntent
+            )
+        } catch (_: SecurityException) {
+            // Permission not granted — alarm won't fire, but app won't crash
+        }
     }
 
     fun cancelWakeUp(context: Context) {
