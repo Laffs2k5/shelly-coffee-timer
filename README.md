@@ -6,7 +6,8 @@ A safety-first home-automation project that turns a **Shelly Plug S Gen3** into 
 
 **Live web control:** https://laffs2k5.github.io/shelly-coffee-timer/
 
-**Specification docs:** [docs/spec/INDEX.md](docs/spec/INDEX.md)
+**Documentation:**
+[Specification](docs/spec/INDEX.md) · [Architecture](docs/ARCHITECTURE.md) · [AI Test Guide](docs/testing/AI-TEST-GUIDE.md) · [Regression Checklist](docs/testing/REGRESSION.md)
 
 ## Hardware
 
@@ -53,3 +54,7 @@ shelly-coffee-timer/
 ## Credentials
 
 All secrets live in `.env`, which is gitignored. **This repo is public — never commit real API keys.** See [doc 10 §7](docs/spec/10-repo-spec.md) for the full credentials policy.
+
+## License
+
+[ISC](LICENSE)
