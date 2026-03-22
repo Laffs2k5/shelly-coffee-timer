@@ -220,22 +220,10 @@ A lightweight third-party service that:
 
 Adafruit IO uniquely fits because it offers MQTT + REST on the same underlying feeds:
 
-```
-┌──────────┐       MQTT (push)        ┌──────────────┐
-│  Shelly  │◄════════════════════════►│  Adafruit IO │
-│  Plug S  │  subscribe + publish     │   (broker +  │
-│  Gen3    │  retained messages       │   REST API)  │
-└──────────┘  firmware-native         └──────┬───────┘
-                                             │
-                                        REST │ HTTP
-                                        API  │ GET/POST
-                                             │
-                                      ┌──────┴───────┐
-                                      │    Phone /   │
-                                      │   Computer   │
-                                      │  (browser,   │
-                                      │   curl, app) │
-                                      └──────────────┘
+```mermaid
+graph TD
+    Shelly["Shelly Plug S Gen3"] <-->|"MQTT (push)<br/>subscribe + publish<br/>retained messages<br/>firmware-native"| AIO["Adafruit IO<br/>(broker + REST API)"]
+    AIO <-->|"REST API<br/>HTTP GET/POST"| Phone["Phone / Computer<br/>(browser, curl, app)"]
 ```
 
 **Why this works:**

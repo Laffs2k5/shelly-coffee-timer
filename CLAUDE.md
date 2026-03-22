@@ -59,9 +59,10 @@ The Shelly mJS runtime is severely limited. When writing or modifying `device/co
 
 ## Communication architecture
 
-```
-Phone ──REST──> Adafruit IO <──MQTT──> Shelly
-Phone ──HTTP (local, same wifi)──────> Shelly
+```mermaid
+graph LR
+    Phone -->|REST| AIO[Adafruit IO] -->|MQTT| Shelly
+    Phone -->|HTTP local, same wifi| Shelly
 ```
 
 Three Adafruit IO feeds: `command` (phone→device), `config` (phone→device), `heartbeat` (device→phone).
@@ -160,6 +161,11 @@ The x86_64 emulator can't run ARM64 AVDs (architecture mismatch), and x86_64 AVD
 
 ### Relay verification
 The user's laptop charger runs through the Shelly plug. Verify relay state: `cat /sys/class/power_supply/AC1/online` (1=on, 0=off).
+
+## Documentation conventions
+
+- **Diagrams must use mermaid syntax**, not ASCII art. Mermaid renders natively on GitHub and in most markdown viewers. Use fenced code blocks with `mermaid` language tag.
+- Keep docs concise. Link to code rather than duplicating it.
 
 ## Spec docs reference
 

@@ -6,47 +6,29 @@ High-level system architecture for the Shelly Coffee Timer project.
 
 ## System Diagram
 
-```
-┌─────────────────────────────────────────────────────────────────────────┐
-│                         INTERNET                                        │
-│                                                                         │
-│  ┌──────────────┐       REST API        ┌────────────────────────┐     │
-│  │  Android App │ ◄──────────────────► │     Adafruit IO        │     │
-│  │  (Kotlin/    │  GET heartbeat/last   │  (Cloud MQTT Broker    │     │
-│  │   Compose)   │  POST command/data    │   + REST API)          │     │
-│  │              │  GET/POST config/data │                        │     │
-│  └──────┬───────┘                       │  Feeds:                │     │
-│         │                               │   command  (phone→dev) │     │
-│         │                               │   config   (phone→dev) │     │
-│         │                               │   heartbeat (dev→phone)│     │
-│  ┌──────┴───────┐                       └────────────┬───────────┘     │
-│  │  HTML Page   │  REST API only                     │                 │
-│  │  (GitHub     │ ◄─────────────────────────────────►│                 │
-│  │   Pages)     │  (no local access due to CORS)     │ MQTT            │
-│  └──────────────┘                                    │ (TLS, QoS 1)   │
-│                                                      │                 │
-└──────────────────────────────────────────────────────┼─────────────────┘
-                                                       │
-┌──────────────────────────────────────────────────────┼─────────────────┐
-│                     LOCAL WIFI                        │                 │
-│                                                      │                 │
-│  ┌──────────────┐    HTTP (direct)    ┌──────────────▼──────────────┐  │
-│  │  Android App │ ◄────────────────► │    Shelly Plug S Gen3      │  │
-│  │  (on wifi)   │  GET coffee_status  │                            │  │
-│  │              │  GET coffee_command  │  mJS script (coffee.js)   │  │
-│  └──────────────┘                     │  - State machine           │  │
-│                                       │  - KVS persistence         │  │
-│         Physical                      │  - MQTT client             │  │
-│         button ──────────────────────►│  - HTTP server             │  │
-│                                       │  - Timer engine            │  │
-│                                       └────────────────────────────┘  │
-│                                                    │                   │
-│                                              AC Relay                  │
-│                                                    │                   │
-│                                       ┌────────────▼────────────────┐  │
-│                                       │       Coffee Maker          │  │
-│                                       └─────────────────────────────┘  │
-└────────────────────────────────────────────────────────────────────────┘
+```mermaid
+graph TD
+    subgraph Internet
+        App[Android App<br/>Kotlin/Compose]
+        HTML[HTML Page<br/>GitHub Pages]
+        AIO[Adafruit IO<br/>Cloud MQTT Broker + REST API<br/>Feeds: command, config, heartbeat]
+
+        App <-->|REST API<br/>GET heartbeat/last<br/>POST command/data<br/>GET/POST config/data| AIO
+        HTML <-->|REST API only<br/>no local access due to CORS| AIO
+    end
+
+    subgraph Local WiFi
+        AppLocal[Android App<br/>on wifi]
+        Button[Physical Button]
+        Shelly[Shelly Plug S Gen3<br/>mJS script coffee.js<br/>State machine, KVS persistence<br/>MQTT client, HTTP server, Timer engine]
+        Coffee[Coffee Maker]
+
+        AppLocal <-->|HTTP direct<br/>GET coffee_status<br/>GET coffee_command| Shelly
+        Button -->|press| Shelly
+        Shelly -->|AC Relay| Coffee
+    end
+
+    AIO <-->|MQTT<br/>TLS, QoS 1| Shelly
 ```
 
 ---
@@ -66,28 +48,18 @@ High-level system architecture for the Shelly Coffee Timer project.
 The mJS runtime is constrained to ~4-5 concurrent timers. The script uses a single
 30-second repeating timer that handles all periodic tasks via counter-based dispatch:
 
-```
-Timer.set(30000, true, main_loop)
-                  │
-                  ▼
-         ┌─ main_loop() ─────────────────────────────────────┐
-         │                                                     │
-         │  tick_counter++                                     │
-         │  if tick_counter >= 2:     ← every 60s             │
-         │      decrement remain by 60s                        │
-         │      if remain <= 0: turn_off()                     │
-         │                                                     │
-         │  hb_elapsed += 30                                   │
-         │  if hb_pending OR hb_elapsed >= interval:           │
-         │      publish_heartbeat()   ← 300s when on, 900s off│
-         │                                                     │
-         │  if cfg_sch==1 AND ntp AND !sw_on:                  │
-         │      check if current time matches schedule         │
-         │      if match: fire schedule, disarm                │
-         │                                                     │
-         │  if !mqtt_init_done:       ← once, ~30s after boot │
-         │      check MQTT, request config via /get            │
-         └─────────────────────────────────────────────────────┘
+```mermaid
+flowchart TD
+    Timer["Timer.set(30000, true, main_loop)"] --> ML
+
+    ML["main_loop()"] --> Tick
+    Tick["tick_counter++<br/>if tick_counter >= 2 (every 60s):<br/>decrement remain by 60s<br/>if remain <= 0: turn_off()"]
+
+    ML --> HB["hb_elapsed += 30<br/>if hb_pending OR hb_elapsed >= interval:<br/>publish_heartbeat()<br/>(300s when on, 900s off)"]
+
+    ML --> Sched["if cfg_sch==1 AND ntp AND !sw_on:<br/>check if current time matches schedule<br/>if match: fire schedule, disarm"]
+
+    ML --> Init["if !mqtt_init_done (once, ~30s after boot):<br/>check MQTT, request config via /get"]
 ```
 
 ---
@@ -97,20 +69,20 @@ Timer.set(30000, true, main_loop)
 The device publishes heartbeats to Adafruit IO to keep the phone informed. A 2-second
 debounce prevents burst publishing when multiple events fire close together.
 
-```
-Event triggers:                    Debounce logic:
-  state change (on/off)  ──┐
-  command processed      ──┤      do_publish_heartbeat(force):
-  config received        ──┼──►     if !force AND (now - hb_last_ts < 2):
-  schedule fires         ──┤            hb_pending = true    ← deferred
-  MQTT connect           ──┘            return
-                                    hb_pending = false
-                                    hb_last_ts = now
-                                    MQTT.publish(heartbeat)
-                                    hb_elapsed = 0
+```mermaid
+flowchart LR
+    E1[state change] --> Debounce
+    E2[command processed] --> Debounce
+    E3[config received] --> Debounce
+    E4[schedule fires] --> Debounce
+    E5[MQTT connect] --> Debounce
 
-Periodic flush (in main_loop):
-  if hb_pending: do_publish_heartbeat(false)   ← catches deferred
+    Debounce["do_publish_heartbeat(force)"]
+    Debounce --> Check{"!force AND<br/>(now - hb_last_ts < 2)?"}
+    Check -->|Yes| Defer["hb_pending = true<br/>(deferred)"]
+    Check -->|No| Publish["hb_pending = false<br/>hb_last_ts = now<br/>MQTT.publish(heartbeat)<br/>hb_elapsed = 0"]
+
+    Flush["Periodic flush in main_loop:<br/>if hb_pending: do_publish_heartbeat(false)"] --> Debounce
 ```
 
 The `hb_pending` flag ensures deferred heartbeats are flushed on the next 30-second
@@ -124,82 +96,61 @@ The Shelly Plug S Gen3 has no separate Input component. The physical button togg
 the switch directly in firmware. Both button presses and `Switch.Set` API calls fire
 the same `switch:0` status change event.
 
-```
-                   ┌──────────────────────┐
-                   │  Status handler      │
-switch:0 event ──► │  (Shelly.addStatus)  │
-                   │                      │
-                   │  if script_switching: │──► ignore (our own call)
-                   │      return           │
-                   │                      │
-                   │  else:               │──► physical button pressed
-                   │      sync state      │    update remain, mode, ack
-                   │      publish hb      │
-                   └──────────────────────┘
+```mermaid
+flowchart TD
+    Event["switch:0 event"] --> Handler["Status handler<br/>(Shelly.addStatus)"]
+    Handler --> Check{"script_switching?"}
+    Check -->|Yes| Ignore["Ignore (our own call)"]
+    Check -->|No| Button["Physical button pressed<br/>sync state, update remain/mode/ack<br/>publish heartbeat"]
 
-Script-initiated switch changes:
-  script_switching = true
-  Shelly.call("Switch.Set", ..., callback {
-      script_switching = false
-  })
+    Script["Script-initiated switch changes:<br/>script_switching = true<br/>Shelly.call Switch.Set callback:<br/>script_switching = false"]
 ```
 
 ---
 
 ## Boot Sequence
 
-```
-1. KVS load (sequential chain, avoids "too many calls" crash)
-   cfg_v → cfg_sch → cfg_h → cfg_m → cfg_dur → cfg_max
-                                                    │
-2. boot_complete()                                  ▼
-   ├── Force switch OFF (safety)
-   ├── Subscribe MQTT: command, config
-   ├── Start main_loop timer (30s repeating)
-   ├── Register status handler (NTP, MQTT, button)
-   ├── Register HTTP endpoints (coffee_status, coffee_command)
-   └── Check if NTP already synced
+```mermaid
+flowchart TD
+    KVS["1. KVS load (sequential chain)<br/>cfg_v → cfg_sch → cfg_h → cfg_m → cfg_dur → cfg_max"] --> Boot
+
+    Boot["2. boot_complete()"]
+    Boot --> B1["Force switch OFF (safety)"]
+    Boot --> B2["Subscribe MQTT: command, config"]
+    Boot --> B3["Start main_loop timer (30s repeating)"]
+    Boot --> B4["Register status handler (NTP, MQTT, button)"]
+    Boot --> B5["Register HTTP endpoints (coffee_status, coffee_command)"]
+    Boot --> B6["Check if NTP already synced"]
 ```
 
 ---
 
 ## Android App Architecture
 
-```
-┌─────────────────────────────────────────────────────────┐
-│  MainActivity                                            │
-│  ├── MainScreen (Compose)                                │
-│  │   ├── Status card (polled every 10s)                  │
-│  │   ├── Timer buttons (OFF, -30, +30, 90)               │
-│  │   ├── Schedule section (toggle + time picker)          │
-│  │   └── Connection footer (Wi-Fi / Internet / Offline)   │
-│  └── SettingsScreen (Shelly IP, AIO user, AIO key)        │
-├──────────────────────────────────────────────────────────┤
-│  CoffeeApi (singleton)                                    │
-│  ├── pollStatus() — auto-detect local/remote              │
-│  │   ├── Try local first (2s timeout)                     │
-│  │   ├── Fall back to remote (Adafruit IO REST)           │
-│  │   └── Mode caching: skip local for 6 polls after fail  │
-│  ├── sendCommand() — route via current mode               │
-│  ├── fetchRemoteConfig() / writeRemoteConfig()            │
-│  └── Connection mode enum: LOCAL / REMOTE / OFFLINE       │
-├──────────────────────────────────────────────────────────┤
-│  Notification subsystem (only while coffee is ON)         │
-│  ├── CoffeeNotificationService (foreground service)       │
-│  │   ├── Polls device every 30s                           │
-│  │   ├── Local countdown between polls (1 min ticks)      │
-│  │   ├── Shows "Coffee ON — N min remaining"              │
-│  │   ├── Shows "Connection lost" after 10 failures (~5m)  │
-│  │   └── Self-stops when device reports OFF                │
-│  ├── ScheduleAlarmManager                                 │
-│  │   ├── Sets AlarmManager for scheduled coffee time       │
-│  │   ├── Re-armed on every successful poll with sch=1      │
-│  │   └── Cancelled when sch=0                              │
-│  ├── ScheduleAlarmReceiver                                │
-│  │   └── Starts CoffeeNotificationService on alarm fire    │
-│  └── NotificationHelper                                   │
-│      └── Channel creation, notification build/update/cancel│
-└──────────────────────────────────────────────────────────┘
+```mermaid
+graph TD
+    subgraph MainActivity
+        MS[MainScreen - Compose]
+        MS --> SC[Status card - polled every 10s]
+        MS --> TB[Timer buttons: OFF, -30, +30, 90]
+        MS --> SS[Schedule section: toggle + time picker]
+        MS --> CF[Connection footer: Wi-Fi / Internet / Offline]
+        Settings[SettingsScreen: Shelly IP, AIO user, AIO key]
+    end
+
+    subgraph CoffeeApi [CoffeeApi - singleton]
+        Poll["pollStatus() — auto-detect local/remote<br/>Try local first (2s timeout)<br/>Fall back to remote (Adafruit IO REST)<br/>Mode caching: skip local for 6 polls after fail"]
+        Send["sendCommand() — route via current mode"]
+        Config["fetchRemoteConfig() / writeRemoteConfig()"]
+        Mode["Connection mode: LOCAL / REMOTE / OFFLINE"]
+    end
+
+    subgraph Notification [Notification subsystem - only while coffee is ON]
+        CNS["CoffeeNotificationService (foreground service)<br/>Polls device every 30s<br/>Local countdown between polls (1 min ticks)<br/>Shows 'Coffee ON — N min remaining'<br/>Shows 'Connection lost' after 10 failures (~5m)<br/>Self-stops when device reports OFF"]
+        SAM["ScheduleAlarmManager<br/>Sets AlarmManager for scheduled coffee time<br/>Re-armed on every successful poll with sch=1<br/>Cancelled when sch=0"]
+        SAR["ScheduleAlarmReceiver<br/>Starts CoffeeNotificationService on alarm fire"]
+        NH["NotificationHelper<br/>Channel creation, notification build/update/cancel"]
+    end
 ```
 
 ### Auto-detect Mode Caching
@@ -214,18 +165,19 @@ The app tracks `lastMode` and `localFailCount` to optimize polling:
 
 ## CI/CD Pipeline
 
-```
-Push to main ──► Build workflow (.github/workflows/build.yml)
-                  ├── Build debug APK
-                  └── Upload as GitHub Actions artifact
+```mermaid
+flowchart LR
+    Push["Push to main"] --> Build["Build workflow<br/>.github/workflows/build.yml"]
+    Build --> B1["Build debug APK"]
+    Build --> B2["Upload as GitHub Actions artifact"]
 
-Push tag v* ───► Release workflow (.github/workflows/release.yml)
-                  ├── Build debug APK
-                  ├── Generate changelog from commits
-                  └── Create GitHub Release with APK attached
+    Tag["Push tag v*"] --> Release["Release workflow<br/>.github/workflows/release.yml"]
+    Release --> R1["Build debug APK"]
+    Release --> R2["Generate changelog from commits"]
+    Release --> R3["Create GitHub Release with APK attached"]
 
-Push web/** ───► Deploy workflow (.github/workflows/deploy-pages.yml)
-                  └── Publish web/ to gh-pages branch
+    Web["Push web/**"] --> Deploy["Deploy workflow<br/>.github/workflows/deploy-pages.yml"]
+    Deploy --> D1["Publish web/ to gh-pages branch"]
 ```
 
 ---

@@ -73,22 +73,23 @@ A single HTML file on GitHub Pages (or any static host) that talks exclusively t
 
 ### 3.1 Layout (matches mockup)
 
-```
-┌─────────────────────────────────────────┐
-│  ▌ Manual control                       │  ← section header
-├─────────────────────────────────────────┤
-│  ⏻  Status        ON with 60 min to go │  ← live, refreshes every 10s
-│  ⚡ Timer control  [ 0 ][-30][+30][ 90] │  ← buttons send commands
-├─────────────────────────────────────────┤
-│  ▌ Schedule                             │  ← section header
-├─────────────────────────────────────────┤
-│  ⏻  Schedule control          [toggle]  │  ← enable/disable
-│  🕐 Schedule time             [06:10]   │  ← native Android TimePickerDialog
-├─────────────────────────────────────────┤
-│  ▌ Connection                           │  ← status bar
-│  🔗 Local (192.168.1.xxx)    ● Online   │  ← or "Remote (Adafruit IO)"
-│  Last updated: 06:15:30                 │
-└─────────────────────────────────────────┘
+```mermaid
+block-beta
+    columns 1
+    block:manual["Manual control"]
+        columns 2
+        A["Status"] B["ON with 60 min to go (live, refreshes every 10s)"]
+        C["Timer control"] D["[ 0 ] [ -30 ] [ +30 ] [ 90 ]"]
+    end
+    block:schedule["Schedule"]
+        columns 2
+        E["Schedule control"] F["[toggle] enable/disable"]
+        G["Schedule time"] H["[06:10] (native TimePickerDialog)"]
+    end
+    block:connection["Connection"]
+        columns 1
+        I["Local (192.168.1.xxx) — Online<br/>Last updated: 06:15:30"]
+    end
 ```
 
 ### 3.2 Status display
@@ -266,54 +267,45 @@ If hosted on GitHub Pages with HTTPS, the HTML page can include a minimal `manif
 
 ### 7.1 Status polling (every 10 seconds)
 
-```
-App                              Shelly (local)           Adafruit IO (remote)
- │                                    │                         │
- │── GET /script/1/coffee_status ─────────►│                         │
- │◄── {state, remaining, mode, ...} ──│                         │
- │  (if local reachable, use this)    │                         │
- │                                    │                         │
- │  (if local unreachable)            │                         │
- │── GET /feeds/heartbeat/data/last ──────────────────────────►│
- │◄── {value: "{\"s\":\"on\",...}"} ──────────────────────────│
+```mermaid
+sequenceDiagram
+    App->>Shelly: GET /script/1/coffee_status
+    Shelly-->>App: {state, remaining, mode, ...}
+    Note over App: if local reachable, use this
+
+    Note over App: if local unreachable:
+    App->>Adafruit IO: GET /feeds/heartbeat/data/last
+    Adafruit IO-->>App: {value: '{"s":"on",...}'}
 ```
 
 ### 7.2 Command (timer button)
 
-```
-App                              Shelly (local)           Adafruit IO (remote)
- │                                    │                         │
- │  [if local]                        │                         │
- │── GET /script/1/coffee_command?cmd=ext─►│                         │
- │◄── {ok, state, remaining, ack} ────│                         │
- │                                    │                         │
- │  [if remote]                       │                         │
- │── POST /feeds/command/data ─────────────────────────────────►│
- │                                    │◄── MQTT push ───────────│
- │                                    │── process command        │
- │                                    │── publish heartbeat ────►│
- │── GET /feeds/heartbeat/data/last ──────────────────────────►│
- │◄── updated heartbeat ─────────────────────────────────────────│
+```mermaid
+sequenceDiagram
+    Note over App: if local:
+    App->>Shelly: GET /script/1/coffee_command?cmd=ext
+    Shelly-->>App: {ok, state, remaining, ack}
+
+    Note over App: if remote:
+    App->>Adafruit IO: POST /feeds/command/data
+    Adafruit IO->>Shelly: MQTT push
+    Note right of Shelly: process command
+    Shelly->>Adafruit IO: publish heartbeat
+    App->>Adafruit IO: GET /feeds/heartbeat/data/last
+    Adafruit IO-->>App: updated heartbeat
 ```
 
 ### 7.3 Schedule change
 
-```
-App                                                      Adafruit IO
- │                                                            │
- │── GET /feeds/config/data/last ────────────────────────────►│
- │◄── current config (v=3, sch=0, h=6, m=10, ...) ──────────│
- │                                                            │
- │  (user toggles schedule on)                                │
- │  (app increments v to 4, sets sch=1)                       │
- │                                                            │
- │── POST /feeds/config/data ────────────────────────────────►│
- │   {value: "{\"v\":4,\"sch\":1,\"h\":6,\"m\":10,...}"}     │
- │                                                            │
- │                              Shelly                        │
- │                                │◄── MQTT push config ──────│
- │                                │── updates KVS, arms sched │
- │                                │── publishes heartbeat ────►│
+```mermaid
+sequenceDiagram
+    App->>Adafruit IO: GET /feeds/config/data/last
+    Adafruit IO-->>App: current config (v=3, sch=0, h=6, m=10, ...)
+    Note left of App: user toggles schedule on, app increments v to 4, sets sch=1
+    App->>Adafruit IO: POST /feeds/config/data {v:4, sch:1, h:6, m:10, ...}
+    Adafruit IO->>Shelly: MQTT push config
+    Note right of Shelly: updates KVS, arms schedule
+    Shelly->>Adafruit IO: publishes heartbeat
 ```
 
 ---

@@ -6,12 +6,9 @@ The communication layer has two distinct paths:
 
 ### 1.1 Remote path (via Adafruit IO)
 
-```
-┌──────────┐                          ┌──────────────┐                         ┌──────────┐
-│  Shelly  │        MQTT (TLS)        │              │       REST (HTTPS)      │  Phone / │
-│  Plug S  │◄════════════════════════►│  Adafruit IO │◄══════════════════════►│ Computer │
-│  Gen3    │  firmware-managed conn   │              │  simple HTTP GET/POST   │          │
-└──────────┘                          └──────────────┘                         └──────────┘
+```mermaid
+graph LR
+    Shelly["Shelly Plug S Gen3"] <-->|"MQTT (TLS)<br/>firmware-managed conn"| AIO["Adafruit IO"] <-->|"REST (HTTPS)<br/>simple HTTP GET/POST"| Phone["Phone / Computer"]
 ```
 
 - **Shelly** speaks MQTT. The firmware handles connection, reconnect, TLS, and subscriptions. The mJS script publishes and reacts to incoming messages.
@@ -24,12 +21,9 @@ Neither the phone nor the device talk directly to each other through this path. 
 
 ### 1.2 Local path (direct HTTP)
 
-```
-┌──────────┐         HTTP (port 80)          ┌──────────┐
-│  Shelly  │◄═══════════════════════════════►│  Phone / │
-│  Plug S  │   same wifi, no internet needed │ Computer │
-│  Gen3    │   Shelly RPC API                │          │
-└──────────┘                                 └──────────┘
+```mermaid
+graph LR
+    Shelly["Shelly Plug S Gen3"] <-->|"HTTP (port 80)<br/>same wifi, no internet needed<br/>Shelly RPC API"| Phone["Phone / Computer"]
 ```
 
 - Phone sends commands directly to the Shelly's built-in HTTP API: `http://<device-ip>/rpc/...`
@@ -110,142 +104,99 @@ Three feeds, each with a single clear purpose and data direction.
 
 ### 3.1 Normal remote on/off
 
-```
-Phone                    Adafruit IO                 Shelly
-  │                          │                          │
-  │── POST command: "t90" ──►│                          │
-  │                          │── MQTT push: "t90" ─────►│
-  │                          │                          │── turns on, timer=90
-  │                          │                          │
-  │                          │◄── MQTT pub heartbeat ───│  (state=on, remain=90, ack=t90)
-  │◄── GET heartbeat ────────│                          │
-  │  sees: on, 90min, ack=t90│                          │
+```mermaid
+sequenceDiagram
+    Phone->>Adafruit IO: POST command: "t90"
+    Adafruit IO->>Shelly: MQTT push: "t90"
+    Note right of Shelly: turns on, timer=90
+    Shelly->>Adafruit IO: MQTT pub heartbeat (state=on, remain=90, ack=t90)
+    Phone->>Adafruit IO: GET heartbeat
+    Adafruit IO-->>Phone: on, 90min, ack=t90
 ```
 
 ### 3.2 Command while device is offline
 
-```
-Phone                    Adafruit IO                 Shelly (offline)
-  │                          │                          │
-  │── POST command: "t90" ──►│                          │
-  │                          │  (not retained, no       │
-  │                          │   subscriber connected)  │
-  │                          │  message is discarded    │
-  │                          │                          │
-  │◄── GET heartbeat ────────│                          │
-  │  sees: old heartbeat,    │                          │
-  │  ack ≠ "t90" → knows     │                          │
-  │  command was not received │                          │
+```mermaid
+sequenceDiagram
+    Phone->>Adafruit IO: POST command: "t90"
+    Note over Adafruit IO,Shelly: Not retained, no subscriber connected — message discarded
+    Phone->>Adafruit IO: GET heartbeat
+    Adafruit IO-->>Phone: old heartbeat, ack ≠ "t90" → command was not received
 ```
 
 ### 3.3 Device reconnects after being offline
 
-```
-Phone                    Adafruit IO                 Shelly (reconnecting)
-  │                          │                          │
-  │                          │                          │── MQTT connect
-  │                          │                          │── publishes to config/get
-  │                          │── latest config ────────►│  (via /get response)
-  │                          │                          │── caches to KVS
-  │                          │                          │── applies schedule if changed
-  │                          │  (no command to replay   │
-  │                          │   — commands are not     │
-  │                          │   retained/stored)       │
-  │                          │                          │
-  │                          │◄── MQTT pub heartbeat ───│  (reports current state)
+```mermaid
+sequenceDiagram
+    Note right of Shelly: MQTT connect
+    Shelly->>Adafruit IO: publishes to config/get
+    Adafruit IO->>Shelly: latest config (via /get response)
+    Note right of Shelly: caches to KVS, applies schedule if changed
+    Note over Adafruit IO: no command to replay — commands are not retained/stored
+    Shelly->>Adafruit IO: MQTT pub heartbeat (reports current state)
 ```
 
 ### 3.4 Schedule fires
 
-```
-Phone                    Adafruit IO                 Shelly
-  │                          │                          │
-  │  (previously wrote       │                          │
-  │   config: sch=1, 06:10)  │                          │
-  │                          │                          │── 06:10 arrives
-  │                          │                          │── schedule fires
-  │                          │                          │── turns on, timer=90
-  │                          │                          │── disables schedule locally (KVS)
-  │                          │                          │
-  │                          │◄── MQTT pub heartbeat ───│  (state=on, remain=90,
-  │                          │                          │   mode=schedule, sch=0)
-  │◄── GET heartbeat ────────│                          │
-  │  sees: on, schedule      │                          │
-  │  now disabled             │                          │
+```mermaid
+sequenceDiagram
+    Note left of Phone: previously wrote config: sch=1, 06:10
+    Note right of Shelly: 06:10 arrives — schedule fires
+    Note right of Shelly: turns on, timer=90, disables schedule locally (KVS)
+    Shelly->>Adafruit IO: MQTT pub heartbeat (state=on, remain=90, mode=schedule, sch=0)
+    Phone->>Adafruit IO: GET heartbeat
+    Adafruit IO-->>Phone: on, schedule now disabled
 ```
 
 ### 3.5 Config update while device is offline
 
-```
-Phone                    Adafruit IO                 Shelly (offline)
-  │                          │                          │
-  │── POST config ──────────►│                          │
-  │  (sch=1, h=7, m=0)       │── stored in database ───│
-  │                          │                          │
-  │          ... time passes, device reconnects ...     │
-  │                          │                          │
-  │                          │                          │── publishes to config/get
-  │                          │── latest config ────────►│  (sch=1, h=7, m=0)
-  │                          │                          │── caches to KVS
-  │                          │                          │── schedule armed for 07:00
+```mermaid
+sequenceDiagram
+    Phone->>Adafruit IO: POST config (sch=1, h=7, m=0)
+    Note over Adafruit IO: stored in database
+    Note over Phone,Shelly: ... time passes, device reconnects ...
+    Shelly->>Adafruit IO: publishes to config/get
+    Adafruit IO->>Shelly: latest config (sch=1, h=7, m=0)
+    Note right of Shelly: caches to KVS, schedule armed for 07:00
 ```
 
 ### 3.6 Power outage recovery
 
-```
-                                                     Shelly (power restored)
-                                                        │
-                                                        │── boots up
-                                                        │── switch defaults to OFF
-                                                        │── loads config from KVS
-                                                        │── connects to MQTT
-                                                        │── publishes to config/get
-                          Adafruit IO                   │
-                              │── latest config ───────►│  (updates KVS if newer)
-                              │                         │
-                              │◄── MQTT pub heartbeat ──│  (state=off, timer=0)
+```mermaid
+sequenceDiagram
+    Note right of Shelly: boots up, switch defaults to OFF
+    Note right of Shelly: loads config from KVS, connects to MQTT
+    Shelly->>Adafruit IO: publishes to config/get
+    Adafruit IO->>Shelly: latest config (updates KVS if newer)
+    Shelly->>Adafruit IO: MQTT pub heartbeat (state=off, timer=0)
 ```
 
 ### 3.7 Stale command rejected
 
-```
-Phone                    Adafruit IO                 Shelly
-  │                          │                          │
-  │── POST command: "+30" ──►│                          │  (device on, timer=10)
-  │         (timestamp 14:02)│                          │
-  │                          │  (delivery delayed —     │
-  │                          │   network issues)        │
-  │                          │                          │── 14:10: timer hits 0
-  │                          │                          │── turns off autonomously
-  │                          │                          │
-  │                          │── MQTT push: "+30" ─────►│  (arrives 14:11)
-  │                          │                          │── checks timestamp: 14:02
-  │                          │                          │── now - 14:02 = 9 min > 2 min
-  │                          │                          │── DISCARDED (stale)
-  │                          │                          │── coffee maker stays off ✓
-  │                          │                          │
-  │                          │◄── MQTT pub heartbeat ───│  (state=off, no ack for "+30")
-  │◄── GET heartbeat ────────│                          │
-  │  sees: off, no ack       │                          │
-  │  → knows command missed  │                          │
-  │  → can resend if desired │                          │
+```mermaid
+sequenceDiagram
+    Note right of Shelly: device on, timer=10
+    Phone->>Adafruit IO: POST command: "+30" (timestamp 14:02)
+    Note over Adafruit IO: delivery delayed — network issues
+    Note right of Shelly: 14:10: timer hits 0, turns off autonomously
+    Adafruit IO->>Shelly: MQTT push: "+30" (arrives 14:11)
+    Note right of Shelly: checks timestamp 14:02, now - 14:02 = 9 min > 2 min
+    Note right of Shelly: DISCARDED (stale) — coffee maker stays off
+    Shelly->>Adafruit IO: MQTT pub heartbeat (state=off, no ack for "+30")
+    Phone->>Adafruit IO: GET heartbeat
+    Adafruit IO-->>Phone: off, no ack → command missed, can resend
 ```
 
 ### 3.8 Local control (same wifi, no internet)
 
-```
-Phone (on wifi)                                      Shelly (on wifi, no internet)
-  │                                                     │
-  │── HTTP GET /rpc/status ────────────────────────────►│
-  │◄── JSON {state: off, timer: 0} ────────────────────│
-  │                                                     │
-  │── HTTP GET /rpc/command?action=t90 ────────────────►│
-  │◄── JSON {ok: true, timer: 90} ─────────────────────│
-  │                                                     │── turns on, timer=90
-  │                                                     │
-  │  No Adafruit IO involved.                           │
-  │  No staleness check needed.                         │
-  │  No NTP needed for command processing.              │
+```mermaid
+sequenceDiagram
+    Phone->>Shelly: HTTP GET /rpc/status
+    Shelly-->>Phone: JSON {state: off, timer: 0}
+    Phone->>Shelly: HTTP GET /rpc/command?action=t90
+    Shelly-->>Phone: JSON {ok: true, timer: 90}
+    Note right of Shelly: turns on, timer=90
+    Note over Phone,Shelly: No Adafruit IO involved. No staleness check needed. No NTP needed.
 ```
 
 ---

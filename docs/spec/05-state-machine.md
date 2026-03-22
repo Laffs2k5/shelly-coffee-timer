@@ -640,36 +640,34 @@ If the MQTT connection is down, `MQTT.publish()` silently fails (returns false).
 
 ## 12. State transition diagram
 
-```
-                    ┌──────────┐
-                    │          │
-      ───boot──────►│   OFF    │◄──────────────────────────┐
-                    │ remain=0 │                            │
-                    │ mode=""  │                            │
-                    └────┬─────┘                            │
-                         │                                  │
-          ┌──────────────┼──────────────┐                   │
-          │              │              │                    │
-     button press    cmd: on/t90    schedule fires           │
-     (any time)      cmd: ext       (if armed +             │
-                     (turns on      NTP synced)             │
-                      with 30)                              │
-          │              │              │                    │
-          ▼              ▼              ▼                    │
-     ┌─────────────────────────────────────┐                │
-     │              ON                     │                │
-     │  remain = countdown (seconds)       │                │
-     │  mode = manual | remote | sch       │                │
-     │                                     │                │
-     │  Events while on:                   │                │
-     │    tick: remain -= 60               │                │
-     │    cmd ext: remain += 1800 (cap)    │                │
-     │    cmd sub: remain -= 1800          │                │
-     │    cmd on/t90: remain = dur*60      │                │
-     │    button press: → OFF              ├────────────────┘
-     │    cmd off: → OFF                   │  remain ≤ 0
-     │    remain ≤ 0: → OFF               │  or cmd off
-     └─────────────────────────────────────┘  or button
+```mermaid
+stateDiagram-v2
+    [*] --> OFF : boot
+
+    OFF --> ON : button press (any time)
+    OFF --> ON : cmd: on/t90
+    OFF --> ON : cmd: ext (turns on with 30)
+    OFF --> ON : schedule fires (if armed + NTP synced)
+
+    ON --> OFF : button press
+    ON --> OFF : cmd off
+    ON --> OFF : remain ≤ 0
+
+    state OFF {
+        [*] : remain=0, mode=""
+    }
+
+    state ON {
+        [*] : remain = countdown (seconds)
+        [*] : mode = manual | remote | sch
+        note left of [*]
+            Events while on:
+            tick: remain -= 60
+            cmd ext: remain += 1800 (cap)
+            cmd sub: remain -= 1800
+            cmd on/t90: remain = dur*60
+        end note
+    }
 ```
 
 ---
