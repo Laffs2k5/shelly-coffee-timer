@@ -34,23 +34,39 @@ jobs:
         working-directory: app
         run: ./gradlew assembleDebug
 
-      - name: Generate release notes
+      - name: Generate changelog
         id: notes
         run: |
-          PREVIOUS_TAG=$(git tag --sort=-creatordate | head -n 2 | tail -n 1)
-          if [ -z "$PREVIOUS_TAG" ] || [ "$PREVIOUS_TAG" = "${{ github.ref_name }}" ]; then
-            echo "body=Initial release." >> "$GITHUB_OUTPUT"
-          else
-            NOTES=$(git log --pretty=format:"- %s" "${PREVIOUS_TAG}..${{ github.ref_name }}")
-            # Use a delimiter for multi-line output
-            {
-              echo "body<<RELEASE_NOTES_EOF"
-              echo "Changes since ${PREVIOUS_TAG}:"
+          PREVIOUS_TAG=$(git tag --sort=-creatordate | sed -n '2p')
+          {
+            echo "body<<RELEASE_NOTES_EOF"
+            if [ -z "$PREVIOUS_TAG" ]; then
+              echo "Initial release."
+            else
+              echo "## What's changed since ${PREVIOUS_TAG}"
               echo ""
-              echo "$NOTES"
-              echo "RELEASE_NOTES_EOF"
-            } >> "$GITHUB_OUTPUT"
-          fi
+              # Group commits by type
+              for type_label in "feat:Features" "fix:Bug Fixes" "docs:Documentation" "ci:CI/CD" "refactor:Refactoring" "chore:Maintenance"; do
+                prefix="${type_label%%:*}"
+                label="${type_label##*:}"
+                COMMITS=$(git log --pretty=format:"- %s" "${PREVIOUS_TAG}..${{ github.ref_name }}" | grep "^- ${prefix}:" | sed "s/^- ${prefix}: /- /" || true)
+                if [ -n "$COMMITS" ]; then
+                  echo "### ${label}"
+                  echo "$COMMITS"
+                  echo ""
+                fi
+              done
+              # Uncategorized commits
+              OTHER=$(git log --pretty=format:"- %s" "${PREVIOUS_TAG}..${{ github.ref_name }}" | grep -v "^- feat:\|^- fix:\|^- docs:\|^- ci:\|^- refactor:\|^- chore:" || true)
+              if [ -n "$OTHER" ]; then
+                echo "### Other"
+                echo "$OTHER"
+                echo ""
+              fi
+              echo "**Full diff:** [\`${PREVIOUS_TAG}...${{ github.ref_name }}\`](https://github.com/${{ github.repository }}/compare/${PREVIOUS_TAG}...${{ github.ref_name }})"
+            fi
+            echo "RELEASE_NOTES_EOF"
+          } >> "$GITHUB_OUTPUT"
 
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
