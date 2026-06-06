@@ -21,19 +21,32 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Set up debug keystore
-        env:
-          DEBUG_KEYSTORE: ${{ secrets.DEBUG_KEYSTORE }}
-        run: |
-          mkdir -p ~/.android
-          echo "$DEBUG_KEYSTORE" | base64 -d > ~/.android/debug.keystore
-
       - name: Set up JDK 17
         uses: actions/setup-java@v4
         with:
           distribution: temurin
           java-version: 17
           cache: gradle
+
+      - name: Set up & validate debug keystore
+        env:
+          DEBUG_KEYSTORE: ${{ secrets.DEBUG_KEYSTORE }}
+        run: |
+          set -euo pipefail
+          mkdir -p ~/.android
+          if [ -z "${DEBUG_KEYSTORE:-}" ]; then
+            echo "::error::DEBUG_KEYSTORE secret is empty/unset. Set it to: base64 -w0 ~/.android/debug.keystore"
+            exit 1
+          fi
+          if ! printf '%s' "$DEBUG_KEYSTORE" | base64 -d > ~/.android/debug.keystore 2>/dev/null; then
+            echo "::error::DEBUG_KEYSTORE is not valid base64."
+            exit 1
+          fi
+          if ! keytool -list -keystore ~/.android/debug.keystore -storepass android -alias androiddebugkey >/dev/null 2>&1; then
+            echo "::error::Decoded DEBUG_KEYSTORE is not a usable debug keystore (need alias 'androiddebugkey' / storepass 'android'). Without it Gradle auto-generates a random debug key per build, so released APKs get inconsistent signatures and updates fail with INSTALL_FAILED_UPDATE_INCOMPATIBLE. Re-set the secret: base64 -w0 ~/.android/debug.keystore"
+            exit 1
+          fi
+          echo "DEBUG_KEYSTORE validated — androiddebugkey present; CI will sign stably."
 
       - name: Set up Android SDK
         uses: android-actions/setup-android@v3
