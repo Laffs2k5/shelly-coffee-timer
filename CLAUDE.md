@@ -36,7 +36,7 @@ Safety-first: every "on" state is a countdown (max 180 min). Power loss = OFF. S
 IMPORTANT: This repo is **public**. No real keys, usernames, IPs, hostnames, device IDs, or MACs in committed files.
 
 - All secrets live in `.env` (gitignored via `*.env`). Template: `.env.example` (⚠️ still lists v1 `AIO_*` vars — pending a v2 update to broker hosts / cloud user+pass / Shelly IP).
-- **v2 secrets:** cloud MQTT (EMQX) username/password, local broker host, the client **`.p12`** identity + its password, and the Shelly IP. The `.p12` is **never committed** (gitignored, imported on-device); the bundled CA cert in `app/.../res/raw/` is the **public** CA cert (safe to ship).
+- **v2 secrets:** cloud MQTT (EMQX) username/password, local broker host, device ID, the client **`.p12`** identity + its password, and the Shelly IP. The `.p12` **and** the private-CA **public** cert are **never committed** — both are **imported at runtime** (Settings) into `filesDir/` (`client.p12`, `mqtt_ca.crt`). Nothing identity-specific is bundled in the APK.
 - The app stores cloud creds + the `.p12` password in `SharedPreferences` (prod-hardening TODO: `EncryptedSharedPreferences`); `web/index.html` keeps cloud creds in `localStorage` — never hardcoded.
 - `device/coffee.js` uses a placeholder `DEVICE` id; the MQTT transport (broker, mTLS certs, topic_prefix) is configured on the device via RPC `Mqtt.SetConfig`, not in the script (see spec 11 §5).
 

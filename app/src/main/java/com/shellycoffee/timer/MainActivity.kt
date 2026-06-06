@@ -131,9 +131,15 @@ fun SettingsScreen(onBack: () -> Unit) {
             else "no client cert imported"
         )
     }
+    var caStatus by remember {
+        mutableStateOf(
+            if (File(context.filesDir, "mqtt_ca.crt").exists()) "CA cert imported"
+            else "no CA cert imported"
+        )
+    }
     var saved by remember { mutableStateOf(false) }
 
-    // Import the LAN-broker client identity (.p12 with the YOUR_PHONE_ID cert+key) into app storage.
+    // Import the LAN-broker client identity (.p12 with the cert+key) into app storage.
     val importCert = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri: Uri? ->
         if (uri != null) {
             certStatus = try {
@@ -141,6 +147,20 @@ fun SettingsScreen(onBack: () -> Unit) {
                     File(context.filesDir, "client.p12").outputStream().use { output -> input.copyTo(output) }
                 }
                 "client.p12 imported"
+            } catch (e: Exception) {
+                "import failed: ${e.message}"
+            }
+        }
+    }
+
+    // Import the broker's private-CA public cert (PEM/DER) for local mTLS trust (self-signed brokers).
+    val importCa = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri: Uri? ->
+        if (uri != null) {
+            caStatus = try {
+                context.contentResolver.openInputStream(uri)?.use { input ->
+                    File(context.filesDir, "mqtt_ca.crt").outputStream().use { output -> input.copyTo(output) }
+                }
+                "CA cert imported"
             } catch (e: Exception) {
                 "import failed: ${e.message}"
             }
@@ -233,6 +253,14 @@ fun SettingsScreen(onBack: () -> Unit) {
                 Text("Import client certificate (.p12)")
             }
             Text(certStatus, color = MaterialTheme.colorScheme.secondary)
+
+            OutlinedButton(
+                onClick = { importCa.launch(arrayOf("*/*")) },
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Text("Import CA certificate (.crt/.pem)")
+            }
+            Text(caStatus, color = MaterialTheme.colorScheme.secondary)
 
             Button(
                 onClick = {

@@ -1,7 +1,0 @@
------BEGIN CERTIFICATE-----
-PLACEHOLDER — replace with your local MQTT broker's private-CA PUBLIC
-certificate (PEM). This is the trust anchor the app uses to verify the
-local Mosquitto broker over mTLS (see MqttTls.kt / spec 11). It is the
-*public* CA cert (safe to ship); the client identity is the separate,
-never-committed .p12 imported on-device. The real cert is gitignored.
------END CERTIFICATE-----

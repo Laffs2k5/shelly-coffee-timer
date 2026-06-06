@@ -316,9 +316,10 @@ All of this folds into the **existing single 30 s `main_loop`** (Wi-Fi check + `
 
 > **Implemented & hardware-verified (2026-06-06 — see [`../archive/IMPLEMENTATION.md`](../archive/IMPLEMENTATION.md)):**
 > the full broker list below is built as the reference transport — `MqttTransport` tries **local broker
-> mTLS** first, falls back to **cloud** (user/pass); the private CA is bundled and the client identity is
-> an imported PKCS#12. HTTP-direct (D11.64) remains the on-Wi-Fi hard-req path alongside it. All paths,
-> roaming, and schedule set/clear/fire confirmed on the phone.
+> mTLS** first, falls back to **cloud** (user/pass); both the private-CA public cert and the client PKCS#12
+> identity are **imported at runtime** (Settings → `filesDir/mqtt_ca.crt` + `client.p12`) — nothing
+> identity-specific is bundled in the APK. HTTP-direct (D11.64) remains the on-Wi-Fi hard-req path alongside
+> it. All paths, roaming, and schedule set/clear/fire confirmed on the phone.
 
 Detailed app redesign is tracked separately; the connection contract is:
 
