@@ -44,8 +44,11 @@ shelly-coffee-timer/
 ### Android app
 
 1. Open `app/` in Android Studio
-2. Build and sideload the APK to your phone
-3. In Settings, enter the Shelly IP (HTTP-direct), the local broker host, the cloud broker user/pass, and import the client `.p12` for local mTLS
+2. **For the local-broker mTLS path:** replace the placeholder `app/src/main/res/raw/mqtt_ca.crt` with your broker's private-CA **public** cert (PEM) before building. (HTTP-direct and cloud work without this.)
+3. Build and sideload the APK to your phone
+4. In Settings, enter the Shelly IP (HTTP-direct), the local broker host, the cloud broker user/pass, and import the client `.p12` for local mTLS
+
+> The bundled CA is build-time today (the released APK ships a placeholder, so it can't do local mTLS without a rebuild). A future enhancement is to import the CA at runtime like the `.p12`, making the released APK fully functional after import.
 
 ### Web control
 

@@ -6,7 +6,7 @@ Shelly Coffee Timer — a Shelly Plug S Gen3 smart plug that controls a coffee m
 
 Safety-first: every "on" state is a countdown (max 180 min). Power loss = OFF. Schedule fires once then disarms. Watchdog resume only on a software/watchdog reboot (`reset_reason == 3`), never on mains power loss.
 
-> **This is v2** (local MQTT). The prior **v1 used Adafruit IO** — archived under `docs/archive/` (frozen at the `adafruit-final` tag). Some `scripts/*.sh` and `.env.example` are still v1/Adafruit-era and pending a v2 cleanup; the live v2 test entry point is `scripts/test-device.sh`.
+> **This is v2** (local MQTT). The prior **v1 used Adafruit IO** — archived under `docs/archive/` (frozen at the `adafruit-final` tag). The v2 test entry point is `scripts/test-device.sh`.
 
 ## Tech stack
 
@@ -28,7 +28,7 @@ Safety-first: every "on" state is a countdown (max 180 min). Power loss = OFF. S
 - `app/` — Android Studio project (Kotlin/Compose).
 - `app/.../notification/` — Foreground notification service (4 files).
 - `web/` — Self-contained HTML control page, MQTT-over-WSS to EMQX (deployed to GitHub Pages).
-- `scripts/` — Bash/node utilities (`build-device.sh`, `test-device.sh`; plus v1/Adafruit-era scripts pending cleanup).
+- `scripts/` — `build-device.sh` (minify the device script), `test-device.sh` (33 Node tests), `test-local-api.sh` (HTTP-direct smoke test).
 - `.github/workflows/` — CI/CD: APK build, release, GitHub Pages deploy.
 
 ## Credentials
@@ -137,7 +137,7 @@ node --test 'device/test/*.test.js'
 
 App logic (pure connection/decide/event-log) has JVM unit tests: `gradlew testDebugUnitTest` (Windows toolchain). Hardware/phone validation is recorded in `docs/archive/HW-VALIDATION-v2.md`.
 
-> The other `scripts/*.sh` (`test-all`, `test-remote-api`, `test-rest`, `test-mqtt`, `setup-feeds`, `send-command`, …) are **v1/Adafruit-era**, run against the old REST/MQTT path, and are pending a v2 cleanup. See `docs/testing/AI-TEST-GUIDE.md` and `docs/testing/REGRESSION.md` for the current v2 procedures.
+`scripts/test-local-api.sh` is an HTTP-direct smoke test against a real device (needs `SHELLY_IP`). See `docs/testing/AI-TEST-GUIDE.md` and `docs/testing/REGRESSION.md` for the current v2 procedures. (The v1/Adafruit test scripts were removed in the v2 cleanup.)
 
 ## Development environment
 
