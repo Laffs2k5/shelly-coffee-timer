@@ -122,6 +122,7 @@ fun SettingsScreen(onBack: () -> Unit) {
     var shellyIp by remember { mutableStateOf(prefs.getString("shelly_ip", "") ?: "") }
     var aioUser by remember { mutableStateOf(prefs.getString("aio_user", "") ?: "") }
     var aioKey by remember { mutableStateOf(prefs.getString("aio_key", "") ?: "") }
+    var cloudHost by remember { mutableStateOf(prefs.getString("mqtt_host", "") ?: "") }
     var localHost by remember { mutableStateOf(prefs.getString("mqtt_local_host", "") ?: "") }
     var deviceId by remember { mutableStateOf(prefs.getString("mqtt_device", "") ?: "") }
     var p12Pass by remember { mutableStateOf(prefs.getString("mqtt_p12_pass", "") ?: "") }
@@ -218,6 +219,16 @@ fun SettingsScreen(onBack: () -> Unit) {
             )
 
             TextField(
+                value = cloudHost,
+                onValueChange = { cloudHost = it; saved = false },
+                label = { Text("Cloud broker host") },
+                placeholder = { Text("xxxxx.emqxsl.com") },
+                modifier = Modifier.fillMaxWidth(),
+                singleLine = true,
+                shape = RoundedCornerShape(8.dp),
+            )
+
+            TextField(
                 value = localHost,
                 onValueChange = { localHost = it; saved = false },
                 label = { Text("Local broker host (LAN mTLS)") },
@@ -268,6 +279,7 @@ fun SettingsScreen(onBack: () -> Unit) {
                         .putString("shelly_ip", shellyIp)
                         .putString("aio_user", aioUser)
                         .putString("aio_key", aioKey)
+                        .putString("mqtt_host", cloudHost)
                         .putString("mqtt_local_host", localHost)
                         .putString("mqtt_device", deviceId)
                         .putString("mqtt_p12_pass", p12Pass)

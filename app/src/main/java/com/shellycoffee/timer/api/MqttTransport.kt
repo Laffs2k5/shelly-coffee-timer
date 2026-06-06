@@ -37,10 +37,12 @@ object MqttTransport {
     private const val DEFAULT_CLOUD_HOST = "your-deployment.emqxsl.com"
     private const val DEFAULT_LOCAL_HOST = "192.168.x.x"
     private const val LOCAL_PORT = 8883
-    // Stable client identity (= the cert CN / cloud username), per spec 11 §7. Safe because this
-    // object is a process-wide singleton shared by MainActivity + the notification service, so there
-    // is never a second concurrent connection with the same id. The web fallback uses a distinct id.
-    private const val CLIENT_ID = "YOUR_PHONE_ID"
+    // Stable client identity = the cloud username / cert CN (spec 11 §7), taken from the cloud-username
+    // setting so it matches the .p12 cert CN for strict local brokers and isn't a baked-in placeholder.
+    // Safe as a singleton (MainActivity + notification service share it); the web fallback uses a distinct id.
+    private const val DEFAULT_CLIENT_ID = "YOUR_PHONE_ID"
+    private fun clientId(): String =
+        prefs()?.getString("aio_user", "")?.takeIf { it.isNotBlank() } ?: DEFAULT_CLIENT_ID
 
     // Device ID is runtime-configurable (Settings → "Device ID"), so topics are computed per use.
     // Like the host fields, a change takes effect on the next fresh connect.
@@ -160,7 +162,7 @@ object MqttTransport {
         timeoutSec: Int
     ): Boolean {
         return try {
-            val cli = MqttClient(uri, CLIENT_ID, MemoryPersistence())
+            val cli = MqttClient(uri, clientId(), MemoryPersistence())
             cli.setCallback(object : MqttCallback {
                 override fun connectionLost(cause: Throwable?) {}
                 override fun messageArrived(topic: String, message: MqttMessage) {
