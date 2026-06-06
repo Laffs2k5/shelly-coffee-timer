@@ -2,12 +2,14 @@
 
 [![Build](https://github.com/Laffs2k5/shelly-coffee-timer/actions/workflows/build.yml/badge.svg)](https://github.com/Laffs2k5/shelly-coffee-timer/actions/workflows/build.yml)
 
-A safety-first home-automation project that turns a **Shelly Plug S Gen3** into a timed coffee-maker controller. Every on-state is a countdown timer — the plug can never be left on indefinitely. The device runs autonomously with an mJS state machine, accepts commands via MQTT through **Adafruit IO**, and is controllable from an Android app, a web page, or curl.
+A safety-first home-automation project that turns a **Shelly Plug S Gen3** into a timed coffee-maker controller. Every on-state is a countdown timer — the plug can never be left on indefinitely. The device runs autonomously with an mJS state machine and a connectivity watchdog, takes commands over a **local MQTT broker (mTLS)** with a **cloud bridge** for off-LAN access, and is also controllable directly over Wi-Fi (local HTTP). Clients: an Android app, a web page, or curl.
 
 **Live web control:** https://laffs2k5.github.io/shelly-coffee-timer/
 
 **Documentation:**
 [Specification](docs/spec/INDEX.md) · [Architecture](docs/ARCHITECTURE.md) · [AI Test Guide](docs/testing/AI-TEST-GUIDE.md) · [Regression Checklist](docs/testing/REGRESSION.md)
+
+> **This is v2** — local MQTT broker + cloud bridge + connectivity watchdog, validated on hardware. The v1 release used **Adafruit IO**; that design is archived in [docs/archive/](docs/archive/) (frozen at the `adafruit-final` tag). v2 design: specs [11](docs/spec/11-local-mqtt.md)–[12](docs/spec/12-watchdog-validation.md) and [Architecture](docs/ARCHITECTURE.md).
 
 ## Hardware
 
@@ -22,8 +24,9 @@ shelly-coffee-timer/
 ├── device/            mJS script for the Shelly (coffee.js)
 ├── web/               HTML control page (GitHub Pages)
 ├── scripts/           Bash utilities (feed setup, REST/MQTT testing)
-├── docs/spec/         Specification documents (00–10 + INDEX)
+├── docs/spec/         Specification documents (00–03, 05–12 + INDEX; 04 archived)
 ├── docs/              Architecture overview, test guides
+├── docs/archive/      v1 (Adafruit) docs + v2 build/validation record
 ├── .github/workflows/ CI/CD: APK build, release, GitHub Pages deploy
 ├── .env.example       Template for credentials
 └── CLAUDE.md          AI assistant context
@@ -33,22 +36,20 @@ shelly-coffee-timer/
 
 ### Device setup
 
-1. `cp .env.example .env` and fill in your Adafruit IO username, key, and Shelly IP
-2. `source .env`
-3. Run `scripts/setup-feeds.sh` to create the Adafruit IO feeds
-4. Run `scripts/test-rest.sh` to verify connectivity
-5. Configure the Shelly's MQTT settings (see [doc 04](docs/spec/04-adafruit-io.md) §4.1)
-6. Paste `device/coffee.js` into the Shelly web UI script editor
+1. `cp .env.example .env` and fill in your broker hosts, credentials, and Shelly IP; `source .env`
+2. Point the Shelly's MQTT at your local broker over mTLS (`Mqtt.SetConfig` via RPC — see [doc 11 §5](docs/spec/11-local-mqtt.md))
+3. Upload the device script: `scripts/build-device.sh` produces `device/coffee.min.js`; flash it via RPC (`Script.PutCode`) or paste into the Shelly web UI
+4. Verify connectivity with the test scripts in `scripts/`
 
 ### Android app
 
 1. Open `app/` in Android Studio
 2. Build and sideload the APK to your phone
-3. Open Settings in the app and enter your Shelly IP, Adafruit IO username, and key
+3. In Settings, enter the Shelly IP (HTTP-direct), the local broker host, the cloud broker user/pass, and import the client `.p12` for local mTLS
 
 ### Web control
 
-- Visit https://laffs2k5.github.io/shelly-coffee-timer/ and enter your Adafruit IO credentials
+- Visit https://laffs2k5.github.io/shelly-coffee-timer/ and enter your cloud MQTT (EMQX) credentials — they persist in the browser only
 - Or open `web/index.html` locally in a browser
 
 ## Credentials

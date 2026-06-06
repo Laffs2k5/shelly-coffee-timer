@@ -27,11 +27,18 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.core.content.ContextCompat
 import androidx.core.view.WindowCompat
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
+import androidx.lifecycle.compose.LocalLifecycleOwner
+import androidx.lifecycle.repeatOnLifecycle
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
 import com.shellycoffee.timer.api.CoffeeApi
+import com.shellycoffee.timer.api.ConnectionUi
+import com.shellycoffee.timer.api.MqttTransport
 import com.shellycoffee.timer.notification.CoffeeNotificationService
+import java.io.File
 import com.shellycoffee.timer.notification.NotificationHelper
 import com.shellycoffee.timer.notification.ScheduleAlarmManager
 import kotlinx.coroutines.*
@@ -44,6 +51,9 @@ class MainActivity : ComponentActivity() {
 
         // Create notification channel on first launch
         NotificationHelper.createChannel(this)
+
+        // Wire the MQTT transport to an app context (needed for the local-broker mTLS path).
+        MqttTransport.init(applicationContext)
 
         // Request all permissions upfront
         requestAppPermissions()
@@ -112,7 +122,29 @@ fun SettingsScreen(onBack: () -> Unit) {
     var shellyIp by remember { mutableStateOf(prefs.getString("shelly_ip", "") ?: "") }
     var aioUser by remember { mutableStateOf(prefs.getString("aio_user", "") ?: "") }
     var aioKey by remember { mutableStateOf(prefs.getString("aio_key", "") ?: "") }
+    var localHost by remember { mutableStateOf(prefs.getString("mqtt_local_host", "") ?: "") }
+    var p12Pass by remember { mutableStateOf(prefs.getString("mqtt_p12_pass", "") ?: "") }
+    var certStatus by remember {
+        mutableStateOf(
+            if (File(context.filesDir, "client.p12").exists()) "client.p12 imported"
+            else "no client cert imported"
+        )
+    }
     var saved by remember { mutableStateOf(false) }
+
+    // Import the LAN-broker client identity (.p12 with the YOUR_PHONE_ID cert+key) into app storage.
+    val importCert = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri: Uri? ->
+        if (uri != null) {
+            certStatus = try {
+                context.contentResolver.openInputStream(uri)?.use { input ->
+                    File(context.filesDir, "client.p12").outputStream().use { output -> input.copyTo(output) }
+                }
+                "client.p12 imported"
+            } catch (e: Exception) {
+                "import failed: ${e.message}"
+            }
+        }
+    }
 
     Scaffold(
         containerColor = MaterialTheme.colorScheme.surface,
@@ -149,7 +181,7 @@ fun SettingsScreen(onBack: () -> Unit) {
             TextField(
                 value = aioUser,
                 onValueChange = { aioUser = it; saved = false },
-                label = { Text("Adafruit IO Username") },
+                label = { Text("Cloud MQTT username") },
                 modifier = Modifier.fillMaxWidth(),
                 singleLine = true,
                 shape = RoundedCornerShape(8.dp),
@@ -158,11 +190,38 @@ fun SettingsScreen(onBack: () -> Unit) {
             TextField(
                 value = aioKey,
                 onValueChange = { aioKey = it; saved = false },
-                label = { Text("Adafruit IO Key") },
+                label = { Text("Cloud MQTT password") },
                 modifier = Modifier.fillMaxWidth(),
                 singleLine = true,
                 shape = RoundedCornerShape(8.dp),
             )
+
+            TextField(
+                value = localHost,
+                onValueChange = { localHost = it; saved = false },
+                label = { Text("Local broker host (LAN mTLS)") },
+                placeholder = { Text("192.168.x.x") },
+                modifier = Modifier.fillMaxWidth(),
+                singleLine = true,
+                shape = RoundedCornerShape(8.dp),
+            )
+
+            TextField(
+                value = p12Pass,
+                onValueChange = { p12Pass = it; saved = false },
+                label = { Text("Client cert password (.p12)") },
+                modifier = Modifier.fillMaxWidth(),
+                singleLine = true,
+                shape = RoundedCornerShape(8.dp),
+            )
+
+            OutlinedButton(
+                onClick = { importCert.launch(arrayOf("*/*")) },
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Text("Import client certificate (.p12)")
+            }
+            Text(certStatus, color = MaterialTheme.colorScheme.secondary)
 
             Button(
                 onClick = {
@@ -170,6 +229,8 @@ fun SettingsScreen(onBack: () -> Unit) {
                         .putString("shelly_ip", shellyIp)
                         .putString("aio_user", aioUser)
                         .putString("aio_key", aioKey)
+                        .putString("mqtt_local_host", localHost)
+                        .putString("mqtt_p12_pass", p12Pass)
                         .apply()
                     saved = true
                 },
@@ -203,6 +264,14 @@ fun MainScreen(onNavigateToSettings: () -> Unit) {
     var scheduleMinute by remember { mutableIntStateOf(0) }
     var showTimePicker by remember { mutableStateOf(false) }
     var notificationPermissionRequested by remember { mutableStateOf(false) }
+    var connLog by remember { mutableStateOf<List<ConnectionUi.LogEntry>>(emptyList()) }
+
+    // Update the connection mode and append to the event log only when the type actually changes.
+    fun applyMode(m: CoffeeApi.ConnectionMode) {
+        val t = SimpleDateFormat("HH:mm:ss", Locale.getDefault()).format(Date())
+        connLog = ConnectionUi.pushIfChanged(connLog, m, t)
+        connectionMode = m
+    }
 
     val permissionLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.RequestPermission()
@@ -231,7 +300,7 @@ fun MainScreen(onNavigateToSettings: () -> Unit) {
             val result = CoffeeApi.pollStatus(ip, user, key)
             withContext(Dispatchers.Main) {
                 status = result.status
-                connectionMode = result.mode
+                applyMode(result.mode)
                 if (result.status != null) {
                     lastUpdated = SimpleDateFormat("HH:mm:ss", Locale.getDefault())
                         .format(Date())
@@ -303,7 +372,7 @@ fun MainScreen(onNavigateToSettings: () -> Unit) {
             val refreshResult = CoffeeApi.pollStatus(ip, user, key)
             withContext(Dispatchers.Main) {
                 status = refreshResult.status
-                connectionMode = refreshResult.mode
+                applyMode(refreshResult.mode)
                 if (refreshResult.status != null) {
                     lastUpdated = SimpleDateFormat("HH:mm:ss", Locale.getDefault())
                         .format(Date())
@@ -314,25 +383,32 @@ fun MainScreen(onNavigateToSettings: () -> Unit) {
 
     fun updateSchedule(enabled: Boolean, hour: Int, minute: Int) {
         scope.launch(Dispatchers.IO) {
-            val (_, user, key) = getPrefs()
-            if (user.isBlank() || key.isBlank()) return@launch
+            val (ip, user, key) = getPrefs()
 
-            val config = CoffeeApi.fetchRemoteConfig(user, key) ?: return@launch
-            val newConfig = config.copy(
-                version = config.version + 1,
+            // Build the new config from the last known device status. The heartbeat + HTTP status now
+            // carry v/dur/max, so we know the current version (needed to satisfy the device's version
+            // gate, v > current) without a separate retained-config read. If we don't yet have a status
+            // with a known version, bail — the UI will re-sync on the next poll and the user can retry.
+            val s = status
+            if (s == null || s.version < 0) return@launch
+            val newConfig = CoffeeApi.ConfigData(
+                version = s.version + 1,
                 scheduleEnabled = if (enabled) 1 else 0,
                 hour = hour,
-                minute = minute
+                minute = minute,
+                duration = s.duration,
+                maxMinutes = s.maxMinutes
             )
+            // Config travels over MQTT (retained). On Wi-Fi this uses the local broker (mTLS, no creds);
+            // off-LAN it uses cloud (creds). writeRemoteConfig/ensureConnected pick the transport.
             CoffeeApi.writeRemoteConfig(user, key, newConfig)
 
             // Refresh status after config change
             delay(1000)
-            val (ip, _, _) = getPrefs()
             val result = CoffeeApi.pollStatus(ip, user, key)
             withContext(Dispatchers.Main) {
                 status = result.status
-                connectionMode = result.mode
+                applyMode(result.mode)
                 if (result.status != null) {
                     lastUpdated = SimpleDateFormat("HH:mm:ss", Locale.getDefault())
                         .format(Date())
@@ -344,12 +420,30 @@ fun MainScreen(onNavigateToSettings: () -> Unit) {
         }
     }
 
-    // Poll every 10 seconds
+    // Poll every 10 s — but ONLY while the UI is foregrounded (>= STARTED). repeatOnLifecycle
+    // cancels the loop on background and restarts it on return, so no ensureConnected() churn while
+    // backgrounded (maintainer keepalive-churn flag 2026-06-06).
+    val lifecycleOwner = LocalLifecycleOwner.current
     LaunchedEffect(Unit) {
-        while (isActive) {
-            refreshStatus()
-            delay(10_000)
+        lifecycleOwner.lifecycle.repeatOnLifecycle(Lifecycle.State.STARTED) {
+            while (isActive) {
+                refreshStatus()
+                delay(10_000)
+            }
         }
+    }
+
+    // On background, drop the MQTT socket UNLESS the foreground notification service is keeping it
+    // alive (coffee ON). Without this, a lingering backgrounded MQTT connection can't PING under Doze
+    // and the broker churns it. The FG service does its own 30 s poll, so its connection stays warm.
+    DisposableEffect(lifecycleOwner) {
+        val obs = LifecycleEventObserver { _, event ->
+            if (event == Lifecycle.Event.ON_STOP && !isServiceRunning(context)) {
+                MqttTransport.disconnect()
+            }
+        }
+        lifecycleOwner.lifecycle.addObserver(obs)
+        onDispose { lifecycleOwner.lifecycle.removeObserver(obs) }
     }
 
     // Time picker dialog
@@ -545,11 +639,12 @@ fun MainScreen(onNavigateToSettings: () -> Unit) {
 
             HorizontalDivider(color = MaterialTheme.colorScheme.outline)
 
-            // --- Connection (subtle) ---
-            val (connText, connColor) = when (connectionMode) {
-                CoffeeApi.ConnectionMode.LOCAL -> "Wi-Fi" to Color(0xFF4CAF50)
-                CoffeeApi.ConnectionMode.REMOTE -> "Internet" to Color(0xFFFFC107)
-                CoffeeApi.ConnectionMode.OFFLINE -> "Offline" to Color(0xFFEF5350)
+            // --- Connection (subtle): 4 distinct types ---
+            val connColor = when (connectionMode) {
+                CoffeeApi.ConnectionMode.HTTP_DIRECT -> Color(0xFF4CAF50)   // green — best (LAN, direct)
+                CoffeeApi.ConnectionMode.LOCAL_BROKER -> Color(0xFF8BC34A)  // light green — LAN via broker (mTLS)
+                CoffeeApi.ConnectionMode.CLOUD -> Color(0xFFFFC107)         // amber — cloud
+                CoffeeApi.ConnectionMode.OFFLINE -> Color(0xFFEF5350)       // red
             }
 
             Row(
@@ -557,7 +652,7 @@ fun MainScreen(onNavigateToSettings: () -> Unit) {
                 horizontalArrangement = Arrangement.SpaceBetween,
             ) {
                 Text(
-                    connText,
+                    ConnectionUi.label(connectionMode),
                     color = connColor,
                     fontSize = 12.sp,
                 )
@@ -566,6 +661,20 @@ fun MainScreen(onNavigateToSettings: () -> Unit) {
                     color = Color(0xFF666666),
                     fontSize = 12.sp,
                 )
+            }
+
+            // --- Connection event log: newest first, max 4, dark gray on black ---
+            if (connLog.isNotEmpty()) {
+                Spacer(modifier = Modifier.height(12.dp))
+                Column(modifier = Modifier.fillMaxWidth()) {
+                    for (e in connLog) {
+                        Text(
+                            "${e.time}   ${ConnectionUi.label(e.mode)}",
+                            color = Color(0xFF555555),
+                            fontSize = 11.sp,
+                        )
+                    }
+                }
             }
         }
     }

@@ -1,5 +1,11 @@
 # Shelly Coffee Maker — Communication Architecture
 
+> **v1 design doc.** Describes the **Adafruit IO** transport (three feeds + the `/get` retain
+> workaround). For **v2** the transport is superseded by a **local MQTT broker (mTLS) + cloud bridge**
+> with native retain — see [11-local-mqtt.md](11-local-mqtt.md) for the v2 topic scheme, and
+> [03-message-format.md](03-message-format.md) for the (still-current) payloads. The control-path model
+> (local-first, remote fallback, authority rules, failure modes) still applies in v2.
+
 ## 1. Overview
 
 The communication layer has two distinct paths:

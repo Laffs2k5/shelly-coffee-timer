@@ -191,7 +191,7 @@ Only one MQTT client can connect per account. The Shelly holds the connection, s
 
 ### 4.6 Shelly MQTT topic_prefix cannot be empty
 
-Setting `topic_prefix` to `""` causes the Shelly to revert it to the device ID (e.g., `shellyplugsg3-8cbfeaa31938`). Publishes to `{device_id}/online` are rejected by Adafruit IO as unrecognized topic format, triggering rate-limit bans. **Fix:** set `topic_prefix` to `{AIO_USER}/feeds`.
+Setting `topic_prefix` to `""` causes the Shelly to revert it to the device ID (e.g., `shellyplugsg3-XXXXXX`). Publishes to `{device_id}/online` are rejected by Adafruit IO as unrecognized topic format, triggering rate-limit bans. **Fix:** set `topic_prefix` to `{AIO_USER}/feeds`.
 
 ---
 

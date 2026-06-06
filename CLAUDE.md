@@ -2,40 +2,43 @@
 
 ## Project overview
 
-Shelly Coffee Timer — a Shelly Plug S Gen3 smart plug that controls a coffee maker via countdown timers. No home server, no hub. Three control paths: physical button, local HTTP (same wifi), remote MQTT via Adafruit IO. An Android app (Kotlin/Compose) and an HTML fallback page provide the phone/computer interface.
+Shelly Coffee Timer — a Shelly Plug S Gen3 smart plug that controls a coffee maker via countdown timers. No home server, no hub. Control paths: physical button, local HTTP (same wifi, always available), and MQTT — over a **local Mosquitto broker (mTLS)** bridged to **EMQX Cloud Serverless** for off-LAN access. The device also runs a **connectivity watchdog** that reboots and resumes state on prolonged connectivity loss. An Android app (Kotlin/Compose) and an HTML fallback page provide the phone/computer interface.
 
-Safety-first: every "on" state is a countdown (max 180 min). Power loss = OFF. Schedule fires once then disarms.
+Safety-first: every "on" state is a countdown (max 180 min). Power loss = OFF. Schedule fires once then disarms. Watchdog resume only on a software/watchdog reboot (`reset_reason == 3`), never on mains power loss.
+
+> **This is v2** (local MQTT). The prior **v1 used Adafruit IO** — archived under `docs/archive/` (frozen at the `adafruit-final` tag). Some `scripts/*.sh` and `.env.example` are still v1/Adafruit-era and pending a v2 cleanup; the live v2 test entry point is `scripts/test-device.sh`.
 
 ## Tech stack
 
 | Component | Tech | Location |
 |-----------|------|----------|
-| Device script | mJS (JavaScript subset on ESP32) | `device/coffee.js` |
+| Device script | mJS (JavaScript subset on ESP32) | `device/coffee.js` (source) → `device/coffee.min.js` (deploy artifact; full source OOMs the heap) |
 | Android app | Kotlin, Jetpack Compose | `app/` |
-| Web fallback | Vanilla HTML/CSS/JS, no frameworks | `web/index.html` |
-| Helper scripts | Bash + curl/mosquitto | `scripts/` |
-| Broker | Adafruit IO (MQTT + REST, free tier) | External service |
+| Web fallback | Vanilla HTML/CSS/JS (MQTT over WSS) | `web/index.html` |
+| Helper scripts | Bash + curl/node | `scripts/` |
+| Broker | Local Mosquitto (mTLS) bridged to EMQX Cloud Serverless | Pi `mqtt` + external EMQX |
 
 ## Key directories
 
-- `docs/spec/` — Specification documents (00-10). The design blueprint, mostly static.
+- `docs/spec/` — Specification docs. v2 design: **11** (local-MQTT re-arch), **12** (watchdog validation). v1 foundational: 00–03, 05–10 (transport bits superseded — see `docs/spec/INDEX.md`).
 - `docs/testing/` — Test guides: AI-TEST-GUIDE.md (automated), REGRESSION.md (manual checklist).
-- `docs/` — Operational docs: ARCHITECTURE.md (system diagram and flows).
-- `device/` — Single mJS script, uploaded via RPC or pasted into Shelly web UI.
+- `docs/` — Operational docs: ARCHITECTURE.md (v2 system diagram and flows).
+- `docs/archive/` — v1 Adafruit docs + the v2 build/validation record (IMPLEMENTATION.md, HW-VALIDATION-v2.md).
+- `device/` — mJS script; deploy the **minified** `coffee.min.js` (built by `scripts/build-device.sh`) via RPC `Script.PutCode`.
 - `app/` — Android Studio project (Kotlin/Compose).
 - `app/.../notification/` — Foreground notification service (4 files).
-- `web/` — Self-contained HTML control page (deployed to GitHub Pages).
-- `scripts/` — Bash utilities for feed setup, testing, sending commands.
+- `web/` — Self-contained HTML control page, MQTT-over-WSS to EMQX (deployed to GitHub Pages).
+- `scripts/` — Bash/node utilities (`build-device.sh`, `test-device.sh`; plus v1/Adafruit-era scripts pending cleanup).
 - `.github/workflows/` — CI/CD: APK build, release, GitHub Pages deploy.
 
 ## Credentials
 
-IMPORTANT: This repo is **public**. No real API keys, usernames, or IPs in committed files.
+IMPORTANT: This repo is **public**. No real keys, usernames, IPs, hostnames, device IDs, or MACs in committed files.
 
-- All secrets live in `.env` (gitignored via `*.env` pattern). Template: `.env.example`.
-- Scripts expect `source .env` before running (provides `AIO_USER`, `AIO_KEY`, `SHELLY_IP`).
-- `web/index.html` must use `localStorage` prompt, never hardcoded credentials.
-- `device/coffee.js` uses a placeholder `AIO_USER` — replace when pasting to device.
+- All secrets live in `.env` (gitignored via `*.env`). Template: `.env.example` (⚠️ still lists v1 `AIO_*` vars — pending a v2 update to broker hosts / cloud user+pass / Shelly IP).
+- **v2 secrets:** cloud MQTT (EMQX) username/password, local broker host, the client **`.p12`** identity + its password, and the Shelly IP. The `.p12` is **never committed** (gitignored, imported on-device); the bundled CA cert in `app/.../res/raw/` is the **public** CA cert (safe to ship).
+- The app stores cloud creds + the `.p12` password in `SharedPreferences` (prod-hardening TODO: `EncryptedSharedPreferences`); `web/index.html` keeps cloud creds in `localStorage` — never hardcoded.
+- `device/coffee.js` uses a placeholder `DEVICE` id; the MQTT transport (broker, mTLS certs, topic_prefix) is configured on the device via RPC `Mqtt.SetConfig`, not in the script (see spec 11 §5).
 
 ## mJS constraints
 
@@ -61,20 +64,22 @@ The Shelly mJS runtime is severely limited. When writing or modifying `device/co
 
 ```mermaid
 graph LR
-    Phone -->|REST| AIO[Adafruit IO] -->|MQTT| Shelly
     Phone -->|HTTP local, same wifi| Shelly
+    Phone -->|mTLS| Mosq[Local Mosquitto] <-->|bridge devices/#| EMQX[EMQX Cloud]
+    PhoneOff[Phone off-LAN / Web] -->|TLS user/pass| EMQX
+    Mosq -->|mTLS| Shelly
 ```
 
-Three Adafruit IO feeds: `command` (phone→device), `config` (phone→device), `heartbeat` (device→phone).
+MQTT topics under `devices/<DEVICE>/`: `command` (→device), `config` (→device, retained), `heartbeat` (←device, retained). Separate liveness topic `mon/<DEVICE>/alive` (LAN-only, outside the bridged `devices/#`). Device `online` LWT is firmware-published.
 
-Adafruit IO does NOT support MQTT retain. Workaround: `/get` topic on connect.
+Native MQTT **retain** is used (no `/get` workaround). Config is version-gated: the device rejects `config` with `v <= cfg_v`, so controllers publish `v+1`. The heartbeat + HTTP `coffee_status` carry `v`/`dur`/`max` so any client knows the current version without a separate read.
 
-### Adafruit IO operational notes
+### v2 broker / transport notes
 
-- **Single MQTT connection per account.** The Shelly holds the slot — `mosquitto_sub`/`mosquitto_pub` from the computer will fail to connect while the Shelly is connected. Test MQTT via REST-to-MQTT path instead.
-- **Rate limit: 30 data points/min.** Exceeding triggers escalating bans (30s → 60s → up to 1 hour). Monitor via: `curl -s "https://io.adafruit.com/api/v2/${AIO_USER}/throttle" -H "X-AIO-Key: ${AIO_KEY}"`
-- **topic_prefix cannot be empty.** The Shelly resets it to the device ID. Set to `{AIO_USER}/feeds` to avoid rejected publishes.
-- **Empty feed /get returns non-JSON.** The script must handle `JSON.parse()` returning `undefined` gracefully.
+- **mJS `MQTT.*` shares the device's single built-in MQTT connection** — it does NOT open a second client. MQTT-over-TLS + a running script can be flap-prone on Gen3; keep firmware current, set a stable `client_id`, minimise script MQTT churn.
+- **`status_ntf`/`rpc_ntf` must be `false`.** With them on, the firmware publishes its full `devices/<id>/status/#` tree (power metering every few seconds) which the bridge mirrors to cloud and burns the free-tier quota. The `online` LWT does **not** depend on them.
+- **Bridge mirrors `devices/#` both ways.** Keep high-frequency signals (`alive`) under `mon/` so they stay LAN-side.
+- **App connection roaming:** the phone prefers HTTP-direct > local-broker mTLS > cloud, re-evaluated every poll; MQTT is dropped when backgrounded with no foreground service (avoids keepalive churn under Doze).
 
 ## Git workflow
 
@@ -123,23 +128,16 @@ Key behavior:
 
 ## Testing
 
-Test scripts in `scripts/` run against real hardware:
+**v2 automated tests** (no hardware — Node `node:test` harness mocking the Shelly runtime + web logic):
 
 ```bash
-source .env
-scripts/test-all.sh          # Run all tests in sequence
-scripts/test-local-api.sh    # Test local HTTP endpoints
-scripts/test-remote-api.sh   # Test Adafruit IO REST endpoints
-scripts/test-staleness.sh    # Verify stale command rejection
-scripts/test-config.sh       # Config version gating
-scripts/test-schedule.sh     # Schedule fire + auto-disarm
-scripts/test-rest.sh         # REST API round-trip
-scripts/test-mqtt.sh         # MQTT connectivity
-scripts/setup-feeds.sh       # Create Adafruit IO feeds
-scripts/send-command.sh t90  # Send a test command
+scripts/test-device.sh       # 33 tests: device mJS logic (mocked Shelly) + web logic
+node --test 'device/test/*.test.js'
 ```
 
-All test scripts support `--dry-run` mode for safe review. See `docs/testing/AI-TEST-GUIDE.md` for AI agent instructions and `docs/testing/REGRESSION.md` for the manual checklist.
+App logic (pure connection/decide/event-log) has JVM unit tests: `gradlew testDebugUnitTest` (Windows toolchain). Hardware/phone validation is recorded in `docs/archive/HW-VALIDATION-v2.md`.
+
+> The other `scripts/*.sh` (`test-all`, `test-remote-api`, `test-rest`, `test-mqtt`, `setup-feeds`, `send-command`, …) are **v1/Adafruit-era**, run against the old REST/MQTT path, and are pending a v2 cleanup. See `docs/testing/AI-TEST-GUIDE.md` and `docs/testing/REGRESSION.md` for the current v2 procedures.
 
 ## Development environment
 
@@ -147,11 +145,13 @@ This project is developed on a **Windows ARM64 Surface laptop** running **WSL2 (
 
 ### Build constraints
 - **Android APK cannot be built in WSL** — the Android SDK's `aapt2` is x86_64 only. Build on Windows via Android Studio or Gradle with Windows SDK.
-- The built APK lives at `C:\Users\peder\temp\shelly-coffee-app\build\outputs\apk\debug\` on Windows.
-- Install to phone: `/mnt/c/Users/peder/AppData/Local/Android/Sdk/platform-tools/adb.exe install -r <apk_path>`
+- The built APK lives under the Windows build project's `build/outputs/apk/debug/`.
+- Install to phone via the Android SDK's `platform-tools/adb.exe install -r <apk_path>`.
 
-### Android emulator — does NOT work
-The x86_64 emulator can't run ARM64 AVDs (architecture mismatch), and x86_64 AVDs require hardware virtualization (unavailable on ARM). No Linux ARM64 emulator exists in the SDK. Test on a physical device.
+### Android emulator — does NOT work on this Windows-on-ARM machine
+The x86_64 emulator can't run ARM64 AVDs (architecture mismatch), and x86_64 AVDs require hardware virtualization (unavailable on ARM). **Test on a physical device.**
+
+**Re-verified 2026-06-05** (official emulator release notes through v36.6.11; Microsoft Surface Snapdragon Q&A): the Android Emulator is still **x86_64-only on Windows — no native Windows-on-ARM (Snapdragon) build exists**, canary or otherwise. Native ARM64 host support exists only for **Linux** (cross-compile + KVM) and **macOS** (Apple Silicon), not Windows. Android Studio itself also has no native Windows-ARM64 build — it runs under x64 translation (~10-20% slower). A Linux-ARM64 emulator could in theory run inside WSL2, but WSL2 doesn't expose KVM/nested-virt here, so it's not practical. Bottom line unchanged: **physical device, or build/emulate on an x86_64 host.**
 
 ### WSL interop
 - Windows executables (`.exe`) can be called from WSL via binfmt_misc.
@@ -159,8 +159,9 @@ The x86_64 emulator can't run ARM64 AVDs (architecture mismatch), and x86_64 AVD
 - `claude.exe` can be invoked from WSL for Windows-side tasks: use `-p "prompt"` and `--dangerously-skip-permissions` for non-interactive mode.
 - Background execution of Windows binaries via the Bash tool's `run_in_background` fails (exec format error). Must run in foreground.
 
-### Relay verification
-The user's laptop charger runs through the Shelly plug. Verify relay state: `cat /sys/class/power_supply/AC1/online` (1=on, 0=off).
+### Relay / device control
+
+WSL can't reach the LAN; drive the Shelly from **Windows** via `pwsh.exe` RPC. Verify relay state with `Switch.GetStatus` (`.result.output`), schedule/config via `KVS.GetMany` (`cfg_*`, `rt`). Reflash the script with chunked `Script.PutCode` (3072-byte HTTP limit → ~1200-char chunks, first `append:false` then `append:true`); the RPC response is under `.result`. (A laptop charger was previously wired through the plug for AC-state verification; no longer connected.)
 
 ## Documentation conventions
 
@@ -171,11 +172,12 @@ The user's laptop charger runs through the Shelly plug. Verify relay state: `cat
 
 Full specification: `docs/spec/INDEX.md`. Key docs by topic:
 
-- Message formats: `docs/spec/03-message-format.md`
-- Adafruit IO setup: `docs/spec/04-adafruit-io.md`
+- **v2 local-MQTT re-arch + watchdog: `docs/spec/11-local-mqtt.md`**
+- **Watchdog reset-reason validation: `docs/spec/12-watchdog-validation.md`**
+- Message formats (incl. v2 `v`/`dur`/`max` heartbeat fields): `docs/spec/03-message-format.md`
 - Device state machine: `docs/spec/05-state-machine.md`
 - Phone interface: `docs/spec/06-phone-interface.md`
-- Phase plan: `docs/spec/09-phase-plan.md`
+- v1 Adafruit IO setup (archived): `docs/archive/04-adafruit-io.md`
 
 Operational docs:
 

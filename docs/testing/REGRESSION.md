@@ -1,148 +1,101 @@
-# Manual Regression Checklist — Shelly Coffee Timer
+# Manual Regression Checklist — Shelly Coffee Timer (v2, local-MQTT)
 
-Use this checklist before releases, after script changes, or after major configuration updates. Check each box after verifying.
+Use before releases, after script changes, or after config updates. **v2 transport** = local Mosquitto
+(mTLS) bridged to EMQX Cloud (see [../spec/11-local-mqtt.md](../spec/11-local-mqtt.md)); Adafruit IO is gone.
+
+> Status: the **Automated** section runs today (no hardware). The **hardware/runtime** sections are
+> written for v2 but **not yet executed against v2 hardware** — run them in the final validation pass.
+
+---
+
+## Automated (no hardware) — run first
+
+- [ ] `scripts/test-device.sh` → **33 tests pass** (25 device logic + 8 web logic)
+- [ ] Android `assembleDebug` → **BUILD SUCCESSFUL** (Windows toolchain; see archive/IMPLEMENTATION.md)
 
 ---
 
 ## Device
 
 ### Physical button
-- [ ] Press while off: plug turns on, timer starts at default duration
-- [ ] Press while on: plug turns off immediately, timer clears
-- [ ] LED indicates switch state correctly
+- [ ] Press while off: plug turns on, timer starts at default duration, mode=manual
+- [ ] Press while on: plug turns off, timer clears
 
-### MQTT commands (via Adafruit IO)
-- [ ] `t90` command with current timestamp: device turns on, remaining=90
-- [ ] `ext` command while on: remaining increases by 30
-- [ ] `sub` command while on: remaining decreases by 30
-- [ ] `off` command while on: device turns off
-- [ ] Stale command (timestamp > 2 min old): silently ignored, no state change
-- [ ] Command before NTP sync: rejected (if testable after reboot)
+### MQTT commands (via local broker or cloud → bridge)
+- [ ] `t90` with current timestamp: on, remaining=90, mode=remote
+- [ ] `ext` / `sub` while on: remaining ±30
+- [ ] `off` while on: off
+- [ ] Stale command (ts > 2 min old): ignored
+- [ ] command published with **retain=false**; config with **retain=true**
 
-### Local HTTP
-- [ ] `GET /script/1/coffee_status` returns JSON with all fields (state, remaining, mode, sch, h, m, ntp, ts)
-- [ ] `GET /script/1/coffee_command?cmd=t90` turns on, returns ok=true
-- [ ] `GET /script/1/coffee_command?cmd=ext` extends timer
-- [ ] `GET /script/1/coffee_command?cmd=sub` reduces timer
-- [ ] `GET /script/1/coffee_command?cmd=off` turns off
-- [ ] `GET /script/1/coffee_command?cmd=bogus` returns 400 with error
-- [ ] `GET /script/1/coffee_command` (no cmd) returns 400 with "missing cmd"
+### Local HTTP (route A — hard req, broker-independent)
+- [ ] `coffee_status` returns all fields (state, remaining, mode, sch, h, m, ntp, ts)
+- [ ] `coffee_command?cmd=t90|ext|sub|off` work; `cmd=bogus` → 400; missing cmd → 400
+- [ ] Works even while the broker/Pi is down
 
 ### Schedule
-- [ ] Arm schedule via config post (sch=1, h, m set to 2 min from now)
-- [ ] Schedule fires at the correct time
-- [ ] Switch turns on with mode=sch
-- [ ] Schedule auto-disarms (sch=0 in heartbeat after firing)
-- [ ] Schedule does not fire if sch=0
+- [ ] Arm via retained config (sch=1, h, m ~2 min out); fires at time; mode=sch; auto-disarms (sch=0)
+- [ ] Does not fire if sch=0
 
-### Boot safety
-- [ ] After power cycle: switch is OFF
-- [ ] After power cycle: timer is cleared (remaining=0)
-- [ ] After power cycle: config loaded from KVS (schedule settings preserved)
-- [ ] After power cycle: MQTT reconnects and publishes heartbeat
+### Topics / retain / monitoring
+- [ ] `heartbeat` is **retained** (a fresh subscriber gets last value immediately; no `/get` used)
+- [ ] `config` is **retained** (device gets latest on reconnect)
+- [ ] `mon/<id>/alive` published **non-retained** ~every 60 s, NTP-independent
+- [ ] `devices/<id>/online` LWT present (retained) — true on connect
+
+### Watchdog + state-resume (v2)
+- [ ] **Resume:** ON + `Shelly.Reboot` → boots ON, remaining preserved (reset_reason=3)
+- [ ] **Safety:** ON + power-cycle → boots OFF, `rt_*` cleared (reset_reason=1)
+- [ ] Wi-Fi down ≥ 15 min → reboots; broker down (Wi-Fi up) ≥ 3 h → reboots
+- [ ] Nightly Pi maintenance (broker down briefly) does NOT reboot the plug
+- [ ] Config preserved across reboot (KVS); MQTT reconnects after reboot
 
 ### Heartbeat
-- [ ] Heartbeat published on state change (on/off)
-- [ ] Heartbeat published on command acknowledgment
-- [ ] Periodic heartbeat while on (~every 5 min)
-- [ ] Periodic heartbeat while off (~every 15 min)
-- [ ] Heartbeat contains correct fields: s, r, mode, sch, h, m, ack, ts, ntp
+- [ ] Published on state change / command ack; periodic ~5 min (on) / ~15 min (off)
+- [ ] Fields: s, r, mode, sch, h, m, ack, ts, ntp
 
-### Config
-- [ ] Config with higher version accepted: values applied
-- [ ] Config with same or lower version rejected: values unchanged
-- [ ] Config changes dur: next t90/on command uses new duration
-- [ ] Config changes max: timer capped at new max
-- [ ] Config persists across reboot (KVS)
+### Config gating
+- [ ] Higher version applied; same/lower ignored; dur/max changes take effect; persists across reboot
 
-### Relay verification (if laptop charger plugged through Shelly)
-- [ ] `cat /sys/class/power_supply/AC1/online` = 1 when switch is on
-- [ ] `cat /sys/class/power_supply/AC1/online` = 0 when switch is off
+### Relay verification (laptop charger through plug — this dev box)
+- [ ] `[bool](Get-CimInstance -Namespace root\wmi -ClassName BatteryStatus).PowerOnline` = True when on, False when off
+  (Windows WMI — WSL2 is LAN-isolated here, so the old `/sys/.../AC1/online` path does not apply)
 
 ---
 
 ## Android App
 
 ### Settings persistence
-- [ ] Shelly IP saved and persisted across app restart
-- [ ] AIO username saved and persisted
-- [ ] AIO key saved and persisted
+- [ ] Shelly IP, **Cloud MQTT username/password**, **local broker host**, **.p12 password** persist across restart
+- [ ] **Import client certificate (.p12)** stores the identity; status shows "client.p12 imported"
 
-### Local control (same wifi)
-- [ ] Status shows "Wi-Fi" or "Local" connection indicator
-- [ ] Status refreshes every ~10 seconds
-- [ ] Timer buttons work: 90, +30, -30, 0
-- [ ] Status updates immediately after local command
+### Transport (broker list: local mTLS → cloud)
+- [ ] On Wi-Fi with broker up: connects to local broker (mTLS) — `connectedVia=LOCAL`
+- [ ] Off-LAN: falls back to cloud (user/pass over WSS) — `connectedVia=CLOUD`
+- [ ] HTTP-direct still works on Wi-Fi (route A), broker up or down
+- [ ] Stable clientId `YOUR_PHONE_ID`, persistent session (does not fight the web fallback's id)
 
-### Remote control (cellular / different network)
-- [ ] Status shows "Internet" or "Remote" connection indicator
-- [ ] Status refreshes from Adafruit IO heartbeat
-- [ ] Timer buttons work via Adafruit IO REST
-- [ ] Status updates after brief delay (heartbeat propagation)
-
-### Schedule UI
-- [ ] Schedule toggle arms/disarms
-- [ ] Time picker opens and allows time selection
-- [ ] Schedule change posts config to Adafruit IO with incremented version
-- [ ] Device heartbeat reflects new schedule settings
-
-### Auto-detect
-- [ ] On home wifi: uses local path (faster response)
-- [ ] On cellular: falls back to remote path
-- [ ] Switching between wifi and cellular: auto-detects correctly
-
-### App icon
-- [ ] Custom launcher icon visible (coffee cup with timer)
+### Control + status
+- [ ] Status card refreshes; connection footer shows Wi-Fi / Internet / Offline
+- [ ] Timer buttons (90, +30, -30, 0) work via the active path
+- [ ] Schedule toggle + time picker post retained config with incremented version; heartbeat reflects it
 
 ### Notification service
-- [ ] When coffee turns ON: persistent notification appears ("Coffee ON -- N min remaining")
-- [ ] Notification countdown updates (decrements each minute between polls)
-- [ ] Notification updates to actual remaining time after each 30s poll
-- [ ] When coffee turns OFF: notification disappears, service stops
-- [ ] Kill app while coffee is ON: notification persists (foreground service survives)
-- [ ] Schedule alarm: set schedule, wait for fire time, notification appears automatically
-- [ ] Connection lost: after ~5 min without contact, notification shows "Connection lost"
-- [ ] Notification permission: prompted on first coffee ON event if not granted
+- [ ] Coffee ON → persistent notification ("Coffee ON -- N min remaining"); countdown updates
+- [ ] Coffee OFF → notification clears, service stops; survives app kill while ON
+- [ ] Schedule alarm fires → service starts; "Connection lost" after ~5 min without contact
 
 ---
 
-## HTML Page (web/index.html)
+## Web fallback (web/index.html) — cloud-only escape hatch
 
-### Credentials
-- [ ] Prompts for AIO username and key on first load
-- [ ] Credentials stored in localStorage
-- [ ] Credentials persist across page refresh
-
-### Commands
-- [ ] Status displayed and auto-refreshes
-- [ ] Timer buttons (0, -30, +30, 90) send commands via Adafruit IO REST
-- [ ] Command reflected in status after brief delay
-
-### Schedule
-- [ ] Schedule toggle works
-- [ ] Schedule time picker works
-- [ ] Config posted with incremented version
-
-### Display
-- [ ] Auto-refresh every ~10 seconds
-- [ ] 24-hour time format used
-- [ ] Favicon displayed in browser tab
+- [ ] Prompts for **cloud MQTT username/password** (+ optional host); stored in localStorage, never hard-coded
+- [ ] Connects to EMQX over WSS (`wss://host:8084/mqtt`); status from retained heartbeat
+- [ ] Timer buttons publish `command`; schedule publishes retained `config` with bumped version
+- [ ] Cannot do local control (HTTPS page → LAN HTTP/mTLS blocked) — expected, remote-only
 
 ---
 
-## Cross-Platform
-
-- [ ] Command sent from Android app: visible in HTML page heartbeat
-- [ ] Command sent from HTML page: visible in Android app status
-- [ ] Schedule changed from Android app: reflected in HTML page
-- [ ] Schedule changed from HTML page: reflected in Android app
-- [ ] Device state consistent across all interfaces after each operation
-
----
-
-## Post-Test Cleanup
-
-- [ ] Switch is OFF
-- [ ] Schedule is disarmed (sch=0)
-- [ ] Config restored to defaults (dur=90, max=180)
-- [ ] No active Adafruit IO rate limit bans
+## Cross-platform / cleanup
+- [ ] Command from app visible in web heartbeat and vice-versa; schedule changes propagate
+- [ ] Switch OFF, schedule disarmed (sch=0), config defaults (dur=90, max=180), no stuck state

@@ -1,5 +1,10 @@
 # Shelly Plug S Gen3 — Lightweight Home Automation
 
+> **v1 design doc.** This landscape study selected **Adafruit IO** as the remote transport (decision
+> D00.5). For **v2** that choice is superseded — the system moved to a **local MQTT broker (mTLS) +
+> cloud bridge**; see [11-local-mqtt.md](11-local-mqtt.md). The non-transport findings (device
+> capabilities, mJS constraints, MQTT-vs-REST, autonomous-operation principle) still hold.
+
 ## 1. Project vision
 
 A single smart plug that operates autonomously. It works on its own with no connectivity. When wifi is present, it can be controlled locally. When internet is present, it can be controlled remotely — asynchronously, without requiring both sides to be online at the same time.

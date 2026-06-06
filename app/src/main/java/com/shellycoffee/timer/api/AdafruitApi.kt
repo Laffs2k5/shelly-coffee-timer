@@ -3,7 +3,6 @@ package com.shellycoffee.timer.api
 import org.json.JSONObject
 import java.io.BufferedReader
 import java.io.InputStreamReader
-import java.io.OutputStreamWriter
 import java.net.HttpURLConnection
 import java.net.URL
 
@@ -24,10 +23,16 @@ object CoffeeApi {
         val scheduleHour: Int,
         val scheduleMinute: Int,
         val ntpSynced: Boolean,
-        val timestamp: Long
+        val timestamp: Long,
+        // Config fields, now carried in the heartbeat + HTTP status (device exposes them so controllers
+        // can write a version-gated config without a separate retained-config read). -1 version = unknown.
+        val version: Int = -1,
+        val duration: Int = 90,
+        val maxMinutes: Int = 180
     )
 
-    enum class ConnectionMode { LOCAL, REMOTE, OFFLINE }
+    // Effective connection type, best→worst: HTTP_DIRECT (Wi-Fi·direct) > LOCAL_BROKER (Wi-Fi·broker, mTLS) > CLOUD.
+    enum class ConnectionMode { HTTP_DIRECT, LOCAL_BROKER, CLOUD, OFFLINE }
 
     data class StatusResult(
         val status: DeviceStatus?,
@@ -64,7 +69,10 @@ object CoffeeApi {
                     scheduleHour = json.optInt("h", 6),
                     scheduleMinute = json.optInt("m", 0),
                     ntpSynced = json.optBoolean("ntp", false),
-                    timestamp = json.optLong("ts", 0)
+                    timestamp = json.optLong("ts", 0),
+                    version = json.optInt("v", -1),
+                    duration = json.optInt("dur", 90),
+                    maxMinutes = json.optInt("max", 180)
                 )
             } else null
         } catch (_: Exception) {
@@ -101,196 +109,75 @@ object CoffeeApi {
         }
     }
 
-    // --- Remote API (Adafruit IO) ---
+    // --- Remote API (v2: cloud MQTT over WSS via MqttTransport) ---
+    // `user`/`key` are now the cloud MQTT username/password (kept as params so callers and
+    // the notification service are unchanged). Status/config are read from MqttTransport's
+    // cache of the retained heartbeat/config topics; commands/config are published.
 
     fun fetchRemoteStatus(user: String, key: String): DeviceStatus? {
-        return try {
-            val url = URL("https://io.adafruit.com/api/v2/$user/feeds/heartbeat/data/last")
-            val conn = url.openConnection() as HttpURLConnection
-            conn.connectTimeout = 5000
-            conn.readTimeout = 5000
-            conn.requestMethod = "GET"
-            conn.setRequestProperty("X-AIO-Key", key)
-
-            if (conn.responseCode == 200) {
-                val body = readResponse(conn)
-                val outer = JSONObject(body)
-                val value = outer.optString("value", "{}")
-                val json = JSONObject(value)
-                DeviceStatus(
-                    state = json.optString("s", "off"),
-                    remaining = json.optInt("r", 0),
-                    mode = json.optString("mode", "unknown"),
-                    scheduleEnabled = json.optInt("sch", 0),
-                    scheduleHour = json.optInt("h", 6),
-                    scheduleMinute = json.optInt("m", 0),
-                    ntpSynced = json.optBoolean("ntp", false),
-                    timestamp = json.optLong("ts", 0)
-                )
-            } else null
-        } catch (_: Exception) {
-            null
-        }
+        MqttTransport.ensureConnected(user, key)
+        return MqttTransport.lastStatus
     }
 
     fun sendRemoteCommand(user: String, key: String, cmd: String): Boolean {
-        return try {
-            val url = URL("https://io.adafruit.com/api/v2/$user/feeds/command/data")
-            val conn = url.openConnection() as HttpURLConnection
-            conn.connectTimeout = 5000
-            conn.readTimeout = 5000
-            conn.requestMethod = "POST"
-            conn.setRequestProperty("X-AIO-Key", key)
-            conn.setRequestProperty("Content-Type", "application/json")
-            conn.doOutput = true
-
-            val ts = System.currentTimeMillis() / 1000
-            val innerJson = JSONObject().apply {
-                put("c", cmd)
-                put("ts", ts)
-            }
-            val outerJson = JSONObject().apply {
-                put("value", innerJson.toString())
-            }
-
-            val writer = OutputStreamWriter(conn.outputStream)
-            writer.write(outerJson.toString())
-            writer.flush()
-            writer.close()
-
-            conn.responseCode in 200..299
-        } catch (_: Exception) {
-            false
-        }
+        return MqttTransport.publishCommand(user, key, cmd)
     }
 
     fun fetchRemoteConfig(user: String, key: String): ConfigData? {
-        return try {
-            val url = URL("https://io.adafruit.com/api/v2/$user/feeds/config/data/last")
-            val conn = url.openConnection() as HttpURLConnection
-            conn.connectTimeout = 5000
-            conn.readTimeout = 5000
-            conn.requestMethod = "GET"
-            conn.setRequestProperty("X-AIO-Key", key)
-
-            if (conn.responseCode == 200) {
-                val body = readResponse(conn)
-                val outer = JSONObject(body)
-                val value = outer.optString("value", "{}")
-                val json = JSONObject(value)
-                ConfigData(
-                    version = json.optInt("v", 0),
-                    scheduleEnabled = json.optInt("sch", 0),
-                    hour = json.optInt("h", 6),
-                    minute = json.optInt("m", 0),
-                    duration = json.optInt("dur", 90),
-                    maxMinutes = json.optInt("max", 180)
-                )
-            } else null
-        } catch (_: Exception) {
-            null
-        }
+        MqttTransport.ensureConnected(user, key)
+        return MqttTransport.lastConfig
     }
 
     fun writeRemoteConfig(user: String, key: String, config: ConfigData): Boolean {
-        return try {
-            val url = URL("https://io.adafruit.com/api/v2/$user/feeds/config/data")
-            val conn = url.openConnection() as HttpURLConnection
-            conn.connectTimeout = 5000
-            conn.readTimeout = 5000
-            conn.requestMethod = "POST"
-            conn.setRequestProperty("X-AIO-Key", key)
-            conn.setRequestProperty("Content-Type", "application/json")
-            conn.doOutput = true
-
-            val innerJson = JSONObject().apply {
-                put("v", config.version)
-                put("sch", config.scheduleEnabled)
-                put("h", config.hour)
-                put("m", config.minute)
-                put("dur", config.duration)
-                put("max", config.maxMinutes)
-            }
-            val outerJson = JSONObject().apply {
-                put("value", innerJson.toString())
-            }
-
-            val writer = OutputStreamWriter(conn.outputStream)
-            writer.write(outerJson.toString())
-            writer.flush()
-            writer.close()
-
-            conn.responseCode in 200..299
-        } catch (_: Exception) {
-            false
-        }
+        return MqttTransport.publishConfig(user, key, config)
     }
 
-    // --- Auto-detect: local first, then remote ---
+    // --- Connection roaming: prefer HTTP-direct > local broker (mTLS) > cloud, re-evaluated every poll ---
 
-    // Track last successful mode to optimize poll order
-    private var lastMode = ConnectionMode.OFFLINE
-    private var localFailCount = 0
+    /**
+     * Pure decision over the available inputs — unit-tested (app/src/test). Side effects (HTTP fetch,
+     * MQTT connect/disconnect) live in pollStatus; this just maps results to the effective mode.
+     */
+    fun decide(local: DeviceStatus?, mqttVia: Broker, mqttStatus: DeviceStatus?): StatusResult {
+        if (local != null) return StatusResult(local, ConnectionMode.HTTP_DIRECT)
+        if (mqttStatus != null) when (mqttVia) {
+            Broker.LOCAL -> return StatusResult(mqttStatus, ConnectionMode.LOCAL_BROKER)
+            Broker.CLOUD -> return StatusResult(mqttStatus, ConnectionMode.CLOUD)
+            Broker.NONE -> {}
+        }
+        return StatusResult(null, ConnectionMode.OFFLINE)
+    }
 
     fun pollStatus(shellyIp: String, user: String, key: String): StatusResult {
-        // If last mode was remote, try remote first (avoid 2s local timeout)
-        // Still try local every 6th poll (~60s) to detect coming home
-        val tryLocalFirst = lastMode != ConnectionMode.REMOTE || localFailCount >= 6
-
-        if (tryLocalFirst && shellyIp.isNotBlank()) {
-            val local = fetchLocalStatus(shellyIp)
-            if (local != null) {
-                lastMode = ConnectionMode.LOCAL
-                localFailCount = 0
-                return StatusResult(local, ConnectionMode.LOCAL)
-            }
-            localFailCount++
+        // 1) Best path: HTTP-direct on Wi-Fi (tried every poll so we always roam back to it).
+        val local = if (shellyIp.isNotBlank()) fetchLocalStatus(shellyIp) else null
+        if (local != null) {
+            MqttTransport.disconnect()   // roam up: don't keep an MQTT socket while direct works
+            return decide(local, Broker.NONE, null)
         }
-
-        // Try remote
-        if (user.isNotBlank() && key.isNotBlank()) {
-            val remote = fetchRemoteStatus(user, key)
-            if (remote != null) {
-                lastMode = ConnectionMode.REMOTE
-                return StatusResult(remote, ConnectionMode.REMOTE)
-            }
-        }
-
-        // If we skipped local above, try it now as last resort
-        if (!tryLocalFirst && shellyIp.isNotBlank()) {
-            val local = fetchLocalStatus(shellyIp)
-            if (local != null) {
-                lastMode = ConnectionMode.LOCAL
-                localFailCount = 0
-                return StatusResult(local, ConnectionMode.LOCAL)
-            }
-            localFailCount++
-        }
-
-        lastMode = ConnectionMode.OFFLINE
-        return StatusResult(null, ConnectionMode.OFFLINE)
+        // 2) Fall back to MQTT (broker list: local mTLS preferred, else cloud).
+        MqttTransport.ensureConnected(user, key)
+        return decide(null, MqttTransport.connectedVia, MqttTransport.lastStatus)
     }
 
     fun sendCommand(
         shellyIp: String, user: String, key: String,
         cmd: String, currentMode: ConnectionMode
     ): DeviceStatus? {
-        // If currently local, try local first
-        if (currentMode == ConnectionMode.LOCAL && shellyIp.isNotBlank()) {
-            val result = sendLocalCommand(shellyIp, cmd)
-            if (result != null) return result
+        // Prefer the path we're currently on; fall back to the other transport.
+        val preferLocal = currentMode == ConnectionMode.HTTP_DIRECT && shellyIp.isNotBlank()
+        if (preferLocal) {
+            val r = sendLocalCommand(shellyIp, cmd)
+            if (r != null) return r
         }
-
-        // Remote
-        if (user.isNotBlank() && key.isNotBlank()) {
-            val sent = sendRemoteCommand(user, key, cmd)
-            if (sent) {
-                // Brief pause then poll for updated status
-                Thread.sleep(500)
-                return fetchRemoteStatus(user, key)
-            }
+        if (MqttTransport.publishCommand(user, key, cmd)) {
+            Thread.sleep(500)
+            return MqttTransport.lastStatus
         }
-
+        if (!preferLocal && shellyIp.isNotBlank()) {
+            val r = sendLocalCommand(shellyIp, cmd)
+            if (r != null) return r
+        }
         return null
     }
 

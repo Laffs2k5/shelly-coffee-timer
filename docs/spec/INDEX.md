@@ -1,14 +1,23 @@
 # Shelly Coffee Maker — Specification Index
 
-> This index and all numbered documents (00–10) live in `docs/spec/`. These are the specification documents — the blueprint used to design and build the system. For operational and development documentation, see `docs/`.
+> This index and the numbered documents live in `docs/spec/`. These are the specification documents — the blueprint used to design and build the system. For operational and development documentation, see `docs/`.
 
 ## Project status
 
-All six phases are complete. The system is live and working: device script running on the Shelly, Android app with notification service, web control page on GitHub Pages, CI/CD pipeline for builds and releases. See doc 09 for the full phase plan. For a high-level system overview, see `docs/ARCHITECTURE.md`.
+**v2 (local MQTT + cloud bridge + connectivity watchdog) is the current system, validated on hardware (2026-06-06).** Device script, Android app, and web fallback are all implemented and hardware-verified — see docs **11** (design), **12** (watchdog/reset-reason validation), and [`docs/ARCHITECTURE.md`](../ARCHITECTURE.md). The build/validation record is archived in [`docs/archive/IMPLEMENTATION.md`](../archive/IMPLEMENTATION.md) and [`docs/archive/HW-VALIDATION-v2.md`](../archive/HW-VALIDATION-v2.md).
+
+**v1 (Adafruit IO)** was the prior release (frozen at the `adafruit-final` tag). Its transport is superseded by doc 11; its Adafruit setup spec is archived at [`docs/archive/04-adafruit-io.md`](../archive/04-adafruit-io.md).
+
+### v1 vs v2 — what still applies
+
+Docs **00–10** are the original v1 design. For v2, the **transport** parts are superseded by doc 11:
+- **00** (service selection → Adafruit), **02** (Adafruit feed model), **04** (Adafruit setup — *archived*).
+
+The rest remains the design basis for v2, with v2 deltas noted in 11/12: **01** (requirements), **03** (message format — *updated for v2: heartbeat/status now carry `v`/`dur`/`max`*), **05** (state machine), **06** (phone interface), **07** (deployment), **08–10**.
 
 ## Project summary
 
-A smart plug (Shelly Plug S Gen3) controlling a coffee maker. Every on-state is a countdown timer — no "on indefinitely." The device operates autonomously with local-first control and optional remote access via Adafruit IO. Controlled from an Android app or web browser.
+A smart plug (Shelly Plug S Gen3) controlling a coffee maker. Every on-state is a countdown timer — no "on indefinitely." The device operates autonomously with a connectivity watchdog, local-first control (physical button + local HTTP over Wi-Fi), and remote access via a local MQTT broker (mTLS) bridged to the cloud. Controlled from an Android app or web browser.
 
 ---
 
@@ -52,12 +61,12 @@ What the bytes look like. Covers: JSON encoding for all three feeds, command cod
 
 ---
 
-### 04 — Adafruit IO Setup & Validation
-`04-adafruit-io.md`
+### 04 — Adafruit IO Setup & Validation — ⚠️ ARCHIVED (v1)
+[`../archive/04-adafruit-io.md`](../archive/04-adafruit-io.md)
 
-Proving the theory works. Covers: account setup, free tier limits (confirmed: 10 feeds, 30 msg/min), the critical finding that **Adafruit IO does not support MQTT retain** and the `/get` topic workaround, MQTT connection details, Shelly MQTT configuration (`Mqtt.SetConfig`), TLS options, topic format, JSON payload behavior on Adafruit IO, and a 6-step validation test plan.
-
-**Key content:** The retain problem and solution (§2), Shelly MQTT config with all fields explained (§4), what the firmware provides vs what we disabled (§4.2), validation tests (§6), rate limit analysis (§7), failure modes specific to AIO (§8).
+The Adafruit IO setup/validation spec. **Superseded by doc 11** for v2 (local MQTT broker with native
+retain — no `/get` workaround, no rate limit). Kept for v1 history. Covered account setup, free-tier
+limits, the no-retain `/get` workaround, `Mqtt.SetConfig`, topic format, and a 6-step validation plan.
 
 ---
 
@@ -125,9 +134,29 @@ Single **public** GitHub repo structure. Covers: directory layout (`docs/`, `dev
 
 ---
 
+### 11 — Local-MQTT Re-Architecture + Connectivity Watchdog
+`11-local-mqtt.md`
+
+The v2 migration off Adafruit IO onto the hybrid MQTT stack (local Mosquitto on the Pi, mTLS, bridged to EMQX Cloud Serverless). Covers: topology, identities/auth (mTLS client cert), connection parameters, the new `devices/YOUR_DEVICE_ID/<channel>` topic scheme with native retain (dropping the `/get` and REST `/data/last` workarounds), app "last seen" vs. infra monitoring separation (`alive`/`online`), per-component porting notes, and a **new connectivity watchdog with state-resume across reboot**.
+
+**Key content:** rip-and-replace decision table (§1), topic mapping with retain semantics (§4), device script changes (§5), watchdog + reboot-reason safety gate (§6), behaviour-by-connectivity (§8), expected MQTT usage for the operator's free-tier quota (§9), web/GitHub Pages port feasibility (§10), open investigations incl. the HIGH-risk reboot-reason detection (§11), decision log D11.59–D11.67 (§12).
+
+**Status:** ✅ IMPLEMENTED & HARDWARE-VERIFIED (2026-06-06). Supersedes the Adafruit transport in docs 02 §1 and 04 (archived). Build/validation record: [`../archive/IMPLEMENTATION.md`](../archive/IMPLEMENTATION.md), [`../archive/HW-VALIDATION-v2.md`](../archive/HW-VALIDATION-v2.md).
+
+---
+
+### 12 — Watchdog Reboot-Reason Validation (Q1)
+`12-watchdog-validation.md`
+
+Hardware validation (2026-06-05, Plug S Gen3 fw 1.7.5) resolving the HIGH blocker behind the watchdog/state-resume design (doc 11 §6, §11 Q1). Confirms `sys.reset_reason` is available at boot and distinguishes a **software/watchdog reboot (`3`, resume)** from a **mains power loss (`1`, boot OFF)**; the RTC-retention alternative is ruled out. Includes method, results, the `resume iff reset_reason == 3` decision, and a re-verify-after-firmware note.
+
+**Status:** ✅ DONE — unblocks doc 11 §6 implementation.
+
+---
+
 ## Reading order
 
-For someone new to the project: **00 → 01 → 02 → 03 → 04 → 05 → 06 → 07 → 08 → 09 → 10**
+For someone new to the project (v2): **11 → 12 → 01 → 03 → 05 → 06 → 07** (then 00/02/04-archived for v1 transport history)
 
 For implementation reference: **10 (repo structure) → 08 (investigations and lessons learned) → 09 (phase plan) → 05 (device script) → 06 (Android app) → 07 (deployment)**
 
@@ -142,7 +171,8 @@ Decisions use a prefix scheme: `D{doc}.{number}`, e.g., D00.1 is the first decis
 | 00 | D00.1–D00.6 | Architecture, service selection |
 | 02 | D02.7–D02.18 | Feeds, retain, staleness, control paths |
 | 03 | D03.19–D03.26 | Encoding, key names, message format |
-| 04 | D04.27–D04.35 | Adafruit IO specifics, `/get` workaround, TLS, topic format |
+| 04 | D04.27–D04.35 | Adafruit IO specifics, `/get` workaround, TLS, topic format *(archived — see [archive/04](../archive/04-adafruit-io.md))* |
+| 11 | D11.59–D11.67 | v2 local-MQTT re-arch, mTLS, topic scheme, watchdog/resume |
 | 05 | D05.36–D05.46 | Timer model, boot sequence, NTP, mJS patterns |
 | 06 | D06.47–D06.55 | Android app, CORS, auto-detect, schedule UX |
 | 07 | D07.56–D07.58 | Deployment, auth, recovery |

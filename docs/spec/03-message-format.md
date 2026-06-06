@@ -102,7 +102,7 @@ GET /script/1/coffee_status
 **Response:**
 
 ```json
-{"state":"on","remaining":74,"mode":"manual","sch":0,"h":6,"m":10,"ntp":true,"ts":1711000000}
+{"state":"on","remaining":74,"mode":"manual","sch":0,"h":6,"m":10,"v":122,"dur":90,"max":180,"ntp":true,"ts":1711000000}
 ```
 
 Same data as the heartbeat (section 4) but delivered synchronously with longer, more readable key names. The heartbeat uses short keys for wire efficiency (`s`, `r`); the local response uses full names (`state`, `remaining`) since it doesn't traverse MQTT. This is how the phone gets status when on the same wifi without going through Adafruit IO.
@@ -177,7 +177,7 @@ The device sets `sch = 0` in its local KVS copy. It does NOT write back to the c
 **Format:** Flat JSON string. Latest value retrievable via REST `/data/last`. See doc 04 §2.
 
 ```json
-{"s":"on","r":74,"mode":"sch","sch":0,"h":6,"m":10,"ack":"ext","ts":1711000000,"ntp":true}
+{"s":"on","r":74,"mode":"sch","sch":0,"h":6,"m":10,"v":122,"dur":90,"max":180,"ack":"ext","ts":1711000000,"ntp":true}
 ```
 
 | Field | Type | Description |
@@ -188,9 +188,19 @@ The device sets `sch = 0` in its local KVS copy. It does NOT write back to the c
 | `sch` | number | Schedule currently armed: 1 or 0 (reflects device's local state, may differ from config feed after schedule fires) |
 | `h` | number | Schedule hour (from current config) |
 | `m` | number | Schedule minute (from current config) |
+| `v` | number | **Current config version** — lets controllers write a version-gated config (`v+1`) without a separate retained-config read. Source of truth lives in device KVS (`cfg_v`). |
+| `dur` | number | Configured on-duration (minutes) for schedule/`on` |
+| `max` | number | Configured max timer cap (minutes) |
 | `ack` | string | Last command code successfully processed. Empty string if none since boot. |
 | `ts` | number | Unix epoch seconds when this heartbeat was generated |
 | `ntp` | boolean | Whether the device has NTP sync |
+
+> **Why `v`/`dur`/`max` are in the heartbeat (added 2026-06-06):** config writes are version-gated
+> (`if msg.v <= cfg_v: reject`). Without the current version exposed to controllers, the only source was
+> the retained `config` topic — which is empty until *some* controller publishes one (chicken-and-egg, and
+> nothing republishes after a broker wipe). Carrying `v`/`dur`/`max` in the heartbeat (and the HTTP
+> `coffee_status`, §5) makes the device the single source of truth and unblocks schedule set/clear from any
+> client. Verified on hardware. The same fields are in `coffee_status`.
 
 ### 4.2 When to publish
 
@@ -205,7 +215,7 @@ The device sets `sch = 0` in its local KVS copy. It does NOT write back to the c
 
 ### 4.3 Heartbeat size
 
-Worst case: `{"s":"on","r":180,"mode":"remote","sch":1,"h":23,"m":59,"ack":"ext","ts":1711036800,"ntp":true}` = ~95 bytes. Well within limits.
+Worst case: `{"s":"on","r":180,"mode":"remote","sch":1,"h":23,"m":59,"v":9999,"dur":180,"max":180,"ack":"ext","ts":1711036800,"ntp":true}` = ~120 bytes. Well within limits.
 
 ---
 

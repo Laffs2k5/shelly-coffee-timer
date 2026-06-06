@@ -11,6 +11,11 @@ app/.externalNativeBuild/
 *.env
 secrets.*
 
+# Private local-only dir for secrets that don't fit a single .env file
+# (e.g. local MQTT client certs + creds, cloud MQTT creds — different sets).
+# Anything under private/ is ignored. Keep ALL real keys/certs here.
+private/
+
 # OS files
 .DS_Store
 Thumbs.db

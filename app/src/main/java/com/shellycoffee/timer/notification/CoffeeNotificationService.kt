@@ -5,6 +5,7 @@ import android.content.Context
 import android.content.Intent
 import android.os.IBinder
 import com.shellycoffee.timer.api.CoffeeApi
+import com.shellycoffee.timer.api.MqttTransport
 import java.util.Timer
 import java.util.TimerTask
 
@@ -67,6 +68,9 @@ class CoffeeNotificationService : Service() {
     }
 
     private fun pollDevice() {
+        // Ensure the MQTT transport has an app context (for the local-broker mTLS path) even when
+        // the service is started by an alarm with the app closed. Idempotent.
+        MqttTransport.init(applicationContext)
         val prefs = getSharedPreferences("coffee_settings", Context.MODE_PRIVATE)
         val ip = prefs.getString("shelly_ip", "") ?: ""
         val user = prefs.getString("aio_user", "") ?: ""

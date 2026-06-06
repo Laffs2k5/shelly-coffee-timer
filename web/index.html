@@ -425,11 +425,14 @@ body {
 <!-- Settings modal -->
 <div id="settingsModal" class="modal-overlay">
   <div class="modal">
-    <h3>Adafruit IO Credentials</h3>
-    <label for="inputUser">Username</label>
+    <h3>Cloud MQTT credentials</h3>
+    <p style="margin:0 0 12px;font-size:0.85em;opacity:0.7;">Escape hatch — uses your phone's cloud MQTT username/password. Stored only in this browser, never sent anywhere else.</p>
+    <label for="inputUser">MQTT username</label>
     <input type="text" id="inputUser" autocapitalize="none" autocorrect="off">
-    <label for="inputKey">AIO Key</label>
+    <label for="inputKey">MQTT password</label>
     <input type="password" id="inputKey">
+    <label for="inputHost">Broker host (optional)</label>
+    <input type="text" id="inputHost" autocapitalize="none" autocorrect="off" placeholder="default EMQX endpoint">
     <div class="modal-btns">
       <button onclick="closeSettings()">Cancel</button>
       <button class="primary" onclick="saveCreds()">Save</button>
@@ -437,21 +440,28 @@ body {
   </div>
 </div>
 
+<!-- MQTT over WebSocket client (pinned). Browser supplies TLS + ALPN that EMQX Serverless requires. -->
+<script src="https://unpkg.com/mqtt@5.10.1/dist/mqtt.min.js"></script>
+<script src="coffee-core.js"></script>
 <script>
 (function() {
   "use strict";
 
-  // --- Credential management ---
-  let aioUser = localStorage.getItem("aio_user") || "";
-  let aioKey  = localStorage.getItem("aio_key")  || "";
-  let pollTimer = null;
-  let currentConfig = null; // cached config for read-modify-write
+  // --- Credential management (cloud MQTT user/pass; reuses the phone's YOUR_PHONE_ID creds) ---
+  var LS = { user: "mqtt_user", pass: "mqtt_pass", host: "mqtt_host" };
+  var user = localStorage.getItem(LS.user) || "";
+  var pass = localStorage.getItem(LS.pass) || "";
+  var host = localStorage.getItem(LS.host) || CoffeeCore.DEFAULT_HOST;
+  var T = CoffeeCore.topics();
+  var client = null;
+  var currentConfig = null; // cached retained config for read-modify-write
 
-  function hasCreds() { return aioUser && aioKey; }
+  function hasCreds() { return user && pass; }
 
   window.openSettings = function() {
-    document.getElementById("inputUser").value = aioUser;
-    document.getElementById("inputKey").value = aioKey;
+    document.getElementById("inputUser").value = user;
+    document.getElementById("inputKey").value = pass;
+    document.getElementById("inputHost").value = localStorage.getItem(LS.host) || "";
     document.getElementById("settingsModal").classList.add("open");
   };
 
@@ -465,16 +475,17 @@ body {
   });
 
   window.saveCreds = function() {
-    const u = document.getElementById("inputUser").value.trim();
-    const k = document.getElementById("inputKey").value.trim();
-    if (!u || !k) { alert("Both fields are required."); return; }
-    aioUser = u;
-    aioKey = k;
-    localStorage.setItem("aio_user", u);
-    localStorage.setItem("aio_key", k);
+    var u = document.getElementById("inputUser").value.trim();
+    var p = document.getElementById("inputKey").value.trim();
+    var h = document.getElementById("inputHost").value.trim();
+    if (!u || !p) { alert("Username and password are required."); return; }
+    user = u; pass = p;
+    localStorage.setItem(LS.user, u);
+    localStorage.setItem(LS.pass, p);
+    if (h) { localStorage.setItem(LS.host, h); host = h; }
+    else { localStorage.removeItem(LS.host); host = CoffeeCore.DEFAULT_HOST; }
     closeSettings();
-    refreshStatus();
-    loadConfig();
+    reconnect();
   };
 
   // Prompt on first load if no creds
@@ -482,34 +493,9 @@ body {
     setTimeout(function() { openSettings(); }, 200);
   }
 
-  // --- API helpers ---
-  function apiUrl(feed, path) {
-    return "https://io.adafruit.com/api/v2/" + encodeURIComponent(aioUser) + "/feeds/" + feed + "/" + path;
-  }
-
-  function apiHeaders() {
-    return { "X-AIO-Key": aioKey, "Content-Type": "application/json" };
-  }
-
-  async function apiGet(feed, path) {
-    const resp = await fetch(apiUrl(feed, path), { headers: apiHeaders() });
-    if (!resp.ok) throw new Error("HTTP " + resp.status);
-    return resp.json();
-  }
-
-  async function apiPost(feed, path, body) {
-    const resp = await fetch(apiUrl(feed, path), {
-      method: "POST",
-      headers: apiHeaders(),
-      body: JSON.stringify(body)
-    });
-    if (!resp.ok) throw new Error("HTTP " + resp.status);
-    return resp.json();
-  }
-
   // --- Status display ---
   function setStatus(text, cls) {
-    const el = document.getElementById("status");
+    var el = document.getElementById("status");
     el.textContent = text;
     el.className = "status-line " + cls;
   }
@@ -527,128 +513,91 @@ body {
     }
   }
 
-  async function refreshStatus() {
+  function pad2(n) { return String(n).padStart(2, "0"); }
+
+  // Render a retained heartbeat into the UI (parsing logic lives in coffee-core.js).
+  function applyHeartbeat(s) {
+    var m = CoffeeCore.parseHeartbeat(s);
+    if (!m) return;
+    setStatus(m.statusText, m.state === "on" ? "status-on" : "status-off");
+    setAck(m.ackText);
+    if (m.sch !== null) document.getElementById("schToggle").checked = m.sch === 1;
+    if (m.h !== null) document.getElementById("schH").value = pad2(m.h);
+    if (m.m !== null) document.getElementById("schM").value = pad2(m.m);
+  }
+
+  function applyConfig(cfg) {
+    if (typeof cfg.sch !== "undefined") document.getElementById("schToggle").checked = cfg.sch === 1;
+    if (typeof cfg.h !== "undefined") document.getElementById("schH").value = pad2(cfg.h);
+    if (typeof cfg.m !== "undefined") document.getElementById("schM").value = pad2(cfg.m);
+  }
+
+  // --- MQTT (cloud-only escape hatch over WSS; see docs/spec/11 §10) ---
+  function disconnect() {
+    if (client) { try { client.end(true); } catch (e) {} client = null; }
+  }
+  function reconnect() { disconnect(); connect(); }
+
+  function connect() {
     if (!hasCreds()) return;
-    try {
-      const data = await apiGet("heartbeat", "data/last");
-      const val = JSON.parse(data.value);
-
-      if (val.s === "on") {
-        setStatus("ON with " + val.r + " min to go", "status-on");
-      } else {
-        setStatus("OFF", "status-off");
+    if (typeof mqtt === "undefined") { setConn(false, "MQTT library failed to load"); return; }
+    setConn(false, "Connecting...");
+    client = mqtt.connect(CoffeeCore.brokerUrl(host), {
+      username: user,
+      password: pass,
+      clean: true,
+      reconnectPeriod: 4000,
+      connectTimeout: 8000,
+      // Distinct client id so we never take over the phone's session (YOUR_PHONE_ID).
+      clientId: "webfallback-" + Math.random().toString(16).slice(2, 10)
+    });
+    client.on("connect", function() {
+      setConn(true, "Cloud MQTT");
+      client.subscribe(T.heartbeat, { qos: 1 });
+      client.subscribe(T.config, { qos: 1 });
+    });
+    client.on("message", function(topic, payload) {
+      var s = payload.toString();
+      if (topic === T.heartbeat) {
+        applyHeartbeat(s);
+        setConn(true, "Cloud MQTT");
+      } else if (topic === T.config) {
+        try { currentConfig = JSON.parse(s); applyConfig(currentConfig); } catch (e) {}
       }
-
-      // Mode tag removed — was confusing alongside connection status
-
-      // Ack
-      if (val.ack) {
-        const ackMap = { ext: "+30", sub: "-30", off: "off", t90: "90", sch: "schedule" };
-        setAck("Last command: " + (ackMap[val.ack] || val.ack));
-      } else {
-        setAck("");
-      }
-
-      // Schedule info from heartbeat
-      if (typeof val.sch !== "undefined") {
-        document.getElementById("schToggle").checked = val.sch === 1;
-      }
-      if (typeof val.h !== "undefined") {
-        document.getElementById("schH").value = String(val.h).padStart(2, "0");
-      }
-      if (typeof val.m !== "undefined") {
-        document.getElementById("schM").value = String(val.m).padStart(2, "0");
-      }
-
-      setConn(true, "Internet");
-    } catch (e) {
-      setStatus("Unknown -- cannot reach Adafruit IO", "status-error");
-      setAck("");
-      setConn(false, "Offline: " + e.message);
-    }
+    });
+    client.on("reconnect", function() { setConn(false, "Reconnecting..."); });
+    client.on("offline", function() { setConn(false, "Offline"); });
+    client.on("error", function(e) { setConn(false, "MQTT error: " + (e && e.message ? e.message : e)); });
   }
 
   // --- Commands ---
-  window.sendCmd = async function(cmd) {
+  window.sendCmd = function(cmd) {
     if (!hasCreds()) { openSettings(); return; }
-    try {
-      const ts = Math.floor(Date.now() / 1000);
-      const payload = JSON.stringify({ c: cmd, ts: ts });
-      await apiPost("command", "data", { value: payload });
-      // Brief delay then refresh to let device process
-      setTimeout(refreshStatus, 1500);
-    } catch (e) {
-      alert("Command failed: " + e.message);
-    }
+    if (!client || !client.connected) { alert("Not connected to the broker yet."); return; }
+    var payload = CoffeeCore.buildCommand(cmd, Math.floor(Date.now() / 1000));
+    client.publish(T.command, payload, { qos: 1, retain: false });
   };
 
-  // --- Config / Schedule ---
-  async function loadConfig() {
-    if (!hasCreds()) return;
-    try {
-      const data = await apiGet("config", "data/last");
-      currentConfig = JSON.parse(data.value);
-      // Update UI from config (more authoritative than heartbeat for schedule)
-      if (typeof currentConfig.sch !== "undefined") {
-        document.getElementById("schToggle").checked = currentConfig.sch === 1;
-      }
-      if (typeof currentConfig.h !== "undefined") {
-        document.getElementById("schH").value = String(currentConfig.h).padStart(2, "0");
-      }
-      if (typeof currentConfig.m !== "undefined") {
-        document.getElementById("schM").value = String(currentConfig.m).padStart(2, "0");
-      }
-    } catch (e) {
-      // Config feed might not exist yet; ignore
-      console.warn("Config load failed:", e);
-    }
-  }
-
-  window.saveSchedule = async function() {
+  // --- Schedule (read-modify-write of the retained config) ---
+  window.saveSchedule = function() {
     if (!hasCreds()) { openSettings(); return; }
-    try {
-      // Read current config first (read-modify-write)
-      const data = await apiGet("config", "data/last");
-      currentConfig = JSON.parse(data.value);
-
-      const newCfg = {
-        v:   (currentConfig.v || 0) + 1,
-        sch: document.getElementById("schToggle").checked ? 1 : 0,
-        h:   parseInt(document.getElementById("schH").value, 10) || 0,
-        m:   parseInt(document.getElementById("schM").value, 10) || 0,
-        dur: currentConfig.dur || 90,
-        max: currentConfig.max || 180
-      };
-
-      await apiPost("config", "data", { value: JSON.stringify(newCfg) });
-      currentConfig = newCfg;
-
-      // Refresh to show updated state
-      setTimeout(refreshStatus, 1500);
-    } catch (e) {
-      alert("Schedule update failed: " + e.message);
-    }
+    if (!client || !client.connected) { alert("Not connected to the broker yet."); return; }
+    var ui = {
+      sch: document.getElementById("schToggle").checked,
+      h: document.getElementById("schH").value,
+      m: document.getElementById("schM").value
+    };
+    var newCfg = CoffeeCore.buildConfig(currentConfig, ui);
+    client.publish(T.config, JSON.stringify(newCfg), { qos: 1, retain: true });
+    currentConfig = newCfg;
   };
-
-  // --- Polling ---
-  function startPolling() {
-    if (pollTimer) clearInterval(pollTimer);
-    refreshStatus();
-    pollTimer = setInterval(refreshStatus, 10000);
-  }
 
   // --- Init ---
-  if (hasCreds()) {
-    startPolling();
-    loadConfig();
-  }
+  if (hasCreds()) connect();
 
-  // Restart polling when page becomes visible again
+  // Reconnect when the page becomes visible again, if the link dropped.
   document.addEventListener("visibilitychange", function() {
-    if (!document.hidden && hasCreds()) {
-      startPolling();
-      loadConfig();
-    }
+    if (!document.hidden && hasCreds() && (!client || !client.connected)) reconnect();
   });
 })();
 </script>
