@@ -433,6 +433,8 @@ body {
     <input type="password" id="inputKey">
     <label for="inputHost">Broker host (optional)</label>
     <input type="text" id="inputHost" autocapitalize="none" autocorrect="off" placeholder="default EMQX endpoint">
+    <label for="inputDevice">Device ID</label>
+    <input type="text" id="inputDevice" autocapitalize="none" autocorrect="off" placeholder="e.g. shellyplug-xxxxxx">
     <div class="modal-btns">
       <button onclick="closeSettings()">Cancel</button>
       <button class="primary" onclick="saveCreds()">Save</button>
@@ -448,11 +450,12 @@ body {
   "use strict";
 
   // --- Credential management (cloud MQTT user/pass; reuses the phone's YOUR_PHONE_ID creds) ---
-  var LS = { user: "mqtt_user", pass: "mqtt_pass", host: "mqtt_host" };
+  var LS = { user: "mqtt_user", pass: "mqtt_pass", host: "mqtt_host", device: "mqtt_device" };
   var user = localStorage.getItem(LS.user) || "";
   var pass = localStorage.getItem(LS.pass) || "";
   var host = localStorage.getItem(LS.host) || CoffeeCore.DEFAULT_HOST;
-  var T = CoffeeCore.topics();
+  var device = localStorage.getItem(LS.device) || CoffeeCore.DEVICE;
+  var T = CoffeeCore.topics(device);
   var client = null;
   var currentConfig = null; // cached retained config for read-modify-write
 
@@ -462,6 +465,7 @@ body {
     document.getElementById("inputUser").value = user;
     document.getElementById("inputKey").value = pass;
     document.getElementById("inputHost").value = localStorage.getItem(LS.host) || "";
+    document.getElementById("inputDevice").value = localStorage.getItem(LS.device) || "";
     document.getElementById("settingsModal").classList.add("open");
   };
 
@@ -478,12 +482,16 @@ body {
     var u = document.getElementById("inputUser").value.trim();
     var p = document.getElementById("inputKey").value.trim();
     var h = document.getElementById("inputHost").value.trim();
+    var d = document.getElementById("inputDevice").value.trim();
     if (!u || !p) { alert("Username and password are required."); return; }
     user = u; pass = p;
     localStorage.setItem(LS.user, u);
     localStorage.setItem(LS.pass, p);
     if (h) { localStorage.setItem(LS.host, h); host = h; }
     else { localStorage.removeItem(LS.host); host = CoffeeCore.DEFAULT_HOST; }
+    if (d) { localStorage.setItem(LS.device, d); device = d; }
+    else { localStorage.removeItem(LS.device); device = CoffeeCore.DEVICE; }
+    T = CoffeeCore.topics(device);
     closeSettings();
     reconnect();
   };
