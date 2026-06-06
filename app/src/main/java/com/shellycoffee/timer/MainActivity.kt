@@ -123,6 +123,7 @@ fun SettingsScreen(onBack: () -> Unit) {
     var aioUser by remember { mutableStateOf(prefs.getString("aio_user", "") ?: "") }
     var aioKey by remember { mutableStateOf(prefs.getString("aio_key", "") ?: "") }
     var localHost by remember { mutableStateOf(prefs.getString("mqtt_local_host", "") ?: "") }
+    var deviceId by remember { mutableStateOf(prefs.getString("mqtt_device", "") ?: "") }
     var p12Pass by remember { mutableStateOf(prefs.getString("mqtt_p12_pass", "") ?: "") }
     var certStatus by remember {
         mutableStateOf(
@@ -207,6 +208,16 @@ fun SettingsScreen(onBack: () -> Unit) {
             )
 
             TextField(
+                value = deviceId,
+                onValueChange = { deviceId = it; saved = false },
+                label = { Text("Device ID") },
+                placeholder = { Text("e.g. shellyplug-xxxxxx") },
+                modifier = Modifier.fillMaxWidth(),
+                singleLine = true,
+                shape = RoundedCornerShape(8.dp),
+            )
+
+            TextField(
                 value = p12Pass,
                 onValueChange = { p12Pass = it; saved = false },
                 label = { Text("Client cert password (.p12)") },
@@ -230,6 +241,7 @@ fun SettingsScreen(onBack: () -> Unit) {
                         .putString("aio_user", aioUser)
                         .putString("aio_key", aioKey)
                         .putString("mqtt_local_host", localHost)
+                        .putString("mqtt_device", deviceId)
                         .putString("mqtt_p12_pass", p12Pass)
                         .apply()
                     saved = true

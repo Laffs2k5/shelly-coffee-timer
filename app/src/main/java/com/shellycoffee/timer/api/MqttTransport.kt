@@ -33,7 +33,7 @@ enum class Broker { NONE, LOCAL, CLOUD }
 
 object MqttTransport {
 
-    private const val DEVICE = "YOUR_DEVICE_ID"
+    private const val DEFAULT_DEVICE = "YOUR_DEVICE_ID"
     private const val DEFAULT_CLOUD_HOST = "your-deployment.emqxsl.com"
     private const val DEFAULT_LOCAL_HOST = "192.168.x.x"
     private const val LOCAL_PORT = 8883
@@ -42,9 +42,13 @@ object MqttTransport {
     // is never a second concurrent connection with the same id. The web fallback uses a distinct id.
     private const val CLIENT_ID = "YOUR_PHONE_ID"
 
-    private val topicHeartbeat = "devices/$DEVICE/heartbeat"
-    private val topicConfig = "devices/$DEVICE/config"
-    private val topicCommand = "devices/$DEVICE/command"
+    // Device ID is runtime-configurable (Settings → "Device ID"), so topics are computed per use.
+    // Like the host fields, a change takes effect on the next fresh connect.
+    private fun device(): String =
+        prefs()?.getString("mqtt_device", "")?.takeIf { it.isNotBlank() } ?: DEFAULT_DEVICE
+    private fun topicHeartbeat() = "devices/${device()}/heartbeat"
+    private fun topicConfig() = "devices/${device()}/config"
+    private fun topicCommand() = "devices/${device()}/command"
 
     @Volatile private var appCtx: Context? = null
     @Volatile private var cloudPolls = 0   // for periodic cloud->local roam-up
@@ -189,8 +193,8 @@ object MqttTransport {
             }
             cli.connect(opts)
             // Retained heartbeat + config arrive immediately on subscribe.
-            cli.subscribe(topicHeartbeat, 1)
-            cli.subscribe(topicConfig, 1)
+            cli.subscribe(topicHeartbeat(), 1)
+            cli.subscribe(topicConfig(), 1)
             client = cli
             true
         } catch (_: Exception) {
@@ -203,7 +207,7 @@ object MqttTransport {
         try {
             val json = JSONObject(payload)
             when (topic) {
-                topicHeartbeat -> lastStatus = CoffeeApi.DeviceStatus(
+                topicHeartbeat() -> lastStatus = CoffeeApi.DeviceStatus(
                     state = json.optString("s", "off"),
                     remaining = json.optInt("r", 0),
                     mode = json.optString("mode", "unknown"),
@@ -216,7 +220,7 @@ object MqttTransport {
                     duration = json.optInt("dur", 90),
                     maxMinutes = json.optInt("max", 180)
                 )
-                topicConfig -> lastConfig = CoffeeApi.ConfigData(
+                topicConfig() -> lastConfig = CoffeeApi.ConfigData(
                     version = json.optInt("v", 0),
                     scheduleEnabled = json.optInt("sch", 0),
                     hour = json.optInt("h", 6),
@@ -239,7 +243,7 @@ object MqttTransport {
                 put("c", cmd)
                 put("ts", ts)
             }.toString()
-            cli.publish(topicCommand, MqttMessage(payload.toByteArray()).apply {
+            cli.publish(topicCommand(), MqttMessage(payload.toByteArray()).apply {
                 qos = 1
                 isRetained = false
             })
@@ -261,7 +265,7 @@ object MqttTransport {
                 put("dur", config.duration)
                 put("max", config.maxMinutes)
             }.toString()
-            cli.publish(topicConfig, MqttMessage(payload.toByteArray()).apply {
+            cli.publish(topicConfig(), MqttMessage(payload.toByteArray()).apply {
                 qos = 1
                 isRetained = true
             })
