@@ -25,6 +25,7 @@ Safety-first: every "on" state is a countdown (max 180 min). Power loss = OFF. S
 - `docs/` — Operational docs: ARCHITECTURE.md (v2 system diagram and flows).
 - `docs/archive/` — v1 Adafruit docs + the v2 build/validation record (IMPLEMENTATION.md, HW-VALIDATION-v2.md).
 - `device/` — mJS script; deploy the **minified** `coffee.min.js` (built by `scripts/build-device.sh`) via RPC `Script.PutCode`.
+  - ⚠️ The committed `coffee.min.js` has the **placeholder** `DEVICE = "YOUR_DEVICE_ID"`. Substitute the real id **in a copy** before uploading (the public repo never holds it). Uploading the committed file as-is moves every topic to `YOUR_DEVICE_ID`: alive, heartbeat and the command/config subscriptions, so the app loses MQTT control. That happened for ~5 min on 2026-10-25 and was fixed by redeploying with the id. Before uploading, save the on-device code (`Script.GetCode`) as the rollback; it also shows the id in use.
 - `app/` — Android Studio project (Kotlin/Compose).
 - `app/.../notification/` — Foreground notification service (4 files).
 - `web/` — Self-contained HTML control page, MQTT-over-WSS to EMQX (deployed to GitHub Pages).
