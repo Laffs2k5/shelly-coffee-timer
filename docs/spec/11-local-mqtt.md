@@ -112,7 +112,7 @@ that subtree. The **infra liveness signal lives under a separate top-level `mon/
 | `{user}/f/command` | `devices/YOUR_DEVICE_ID/command` | phone → device | **NO** | safety: never replay a stale "on"; staleness check stays |
 | `{user}/f/config` | `devices/YOUR_DEVICE_ID/config` | phone → device | **YES** | device gets latest config on every (re)connect — **drop the `/get` workaround** |
 | `{user}/f/heartbeat` | `devices/YOUR_DEVICE_ID/heartbeat` | device → phone | **YES** | app's "last seen" — **drop REST `/data/last`**; phone gets last HB on subscribe |
-| — (new) | **`mon/YOUR_DEVICE_ID/alive`** | device → monitor | **NO** | infra liveness; **payload irrelevant** (no uptime/reboot field); fixed timer; NTP-independent; **absolute topic** (outside `topic_prefix`) |
+| — (new) | **`mon/YOUR_DEVICE_ID/alive`** | device → monitor | **NO** | infra liveness; any message counts (no uptime/reboot field); payload `{"rssi":<dBm>}` since 2026-10-25, for the monitor's Wi-Fi signal graph; fixed timer; NTP-independent; **absolute topic** (outside `topic_prefix`) |
 | — (new, automatic) | `devices/YOUR_DEVICE_ID/online` | device → all | YES | Shelly **built-in LWT** — no script code, just `topic_prefix`. Independent of `status_ntf` (verified 2026-06-06: LWT still published with `status_ntf:false`). |
 
 **Payload formats are unchanged** (command/config/heartbeat JSON, the `ts` timestamp field, short
@@ -191,8 +191,8 @@ new watchdog/resume (§6).
    - Keep the staleness check, command codes, debounce, and the `script_switching` button handling
      exactly as-is.
 4. **Emit `alive` for the monitor:** in `main_loop`, every 60 s (every 2 cycles) publish to the
-   **absolute** topic `mon/YOUR_DEVICE_ID/alive` **non-retained**. **Payload is irrelevant** (e.g.
-   `"1"`) — no uptime/reboot field. **Publish regardless of NTP** — liveness must not depend on the
+   **absolute** topic `mon/YOUR_DEVICE_ID/alive` **non-retained**. Any message counts as alive (originally `"1"`; since 2026-10-25 the payload
+   is `{"rssi":<dBm>}` for the monitor's signal graph) — no uptime/reboot field. **Publish regardless of NTP** — liveness must not depend on the
    clock (unlike `heartbeat`, which gates on `ntp_synced`).
    - ✅ **ACL gate cleared:** the `mon/YOUR_DEVICE_ID/#` grant is deployed & verified on the live
      broker (2026-06-05) — no longer blocked.

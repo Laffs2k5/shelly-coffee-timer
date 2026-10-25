@@ -106,7 +106,7 @@ deny-by-default and per-identity (`devices/%u/#` + `mon/%u/#`). The bridge and A
 | `devices/YOUR_DEVICE_ID/command` | phone → device | **NO** | commands (`on`/`off`/`ext`/`sub`/`t90`); staleness-checked, never replayed |
 | `devices/YOUR_DEVICE_ID/config` | phone → device | **YES** | desired config; device gets latest on every (re)connect |
 | `devices/YOUR_DEVICE_ID/heartbeat` | device → phone | **YES** | the app's "last seen"; phone gets last value on subscribe |
-| `mon/YOUR_DEVICE_ID/alive` | device → monitor | **NO** | infra liveness; payload irrelevant; LAN-only (outside the bridge) |
+| `mon/YOUR_DEVICE_ID/alive` | device → monitor | **NO** | infra liveness (any message counts); payload `{"rssi":<dBm>}` for the monitor's signal graph; LAN-only (outside the bridge) |
 | `devices/YOUR_DEVICE_ID/online` | device → all | YES | Shelly built-in LWT (automatic, no script code) |
 
 Native MQTT **retain** replaces the Adafruit `/get` and REST `/data/last` workarounds entirely.
@@ -330,7 +330,7 @@ Topics change; payloads do not (see [spec/03-message-format.md](spec/03-message-
 {"s":"on","r":84,"mode":"remote","sch":0,"h":9,"m":27,"ack":"t90","ts":1774181053,"ntp":true}
 ```
 
-**Liveness** → `mon/YOUR_DEVICE_ID/alive` (retain=false): payload irrelevant (e.g. `"1"`).
+**Liveness** → `mon/YOUR_DEVICE_ID/alive` (retain=false): any message counts as alive; the payload is `{"rssi":<dBm>}` (since 2026-10-25) so the household monitor can graph Wi-Fi signal without touching the bridged `devices/` tree.
 
 **Local status** (HTTP-direct response, longer key names):
 ```json

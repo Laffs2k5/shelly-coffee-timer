@@ -21,7 +21,7 @@ const T = {
   alive: "mon/" + DEVICE + "/alive",
 };
 
-// Build a device instance. opts: { kvs, reset_reason, unixtime, uptime, wifi, mqtt }
+// Build a device instance. opts: { kvs, reset_reason, unixtime, uptime, wifi, rssi, mqtt }
 function createDevice(opts) {
   opts = opts || {};
   const state = {
@@ -33,7 +33,7 @@ function createDevice(opts) {
       uptime: opts.uptime != null ? opts.uptime : 5,
       reset_reason: opts.reset_reason != null ? opts.reset_reason : 1,
     },
-    wifi: { status: opts.wifi != null ? opts.wifi : "got ip" },
+    wifi: { status: opts.wifi != null ? opts.wifi : "got ip", rssi: opts.rssi != null ? opts.rssi : -62 },
     mqttConnected: opts.mqtt != null ? opts.mqtt : true,
     published: [], // {topic, payload, qos, retain}
     subs: {},
@@ -73,7 +73,7 @@ function createDevice(opts) {
       if (name === "sys") {
         return { unixtime: state.sys.unixtime, uptime: state.sys.uptime, reset_reason: state.sys.reset_reason };
       }
-      if (name === "wifi") return { status: state.wifi.status };
+      if (name === "wifi") return { status: state.wifi.status, rssi: state.wifi.rssi };
       if (name === "mqtt") return { connected: state.mqttConnected };
       return null;
     },

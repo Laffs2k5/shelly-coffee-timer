@@ -181,9 +181,11 @@ function publish_heartbeat() {
   do_publish_heartbeat(false);
 }
 
-// Infra liveness (spec 11 §4.1). Non-retained, payload irrelevant, NTP-independent.
+// Infra liveness (spec 11 §4.1). Non-retained, NTP-independent. Any message counts as alive; the
+// payload {"rssi":<dBm>} also feeds the household monitor's Wi-Fi signal graph (LAN-only, mon/).
 function publish_alive() {
-  MQTT.publish(TOPIC_ALIVE, "1", 0, false);
+  let w = Shelly.getComponentStatus("wifi");
+  MQTT.publish(TOPIC_ALIVE, JSON.stringify({ rssi: w ? w.rssi : null }), 0, false);
 }
 
 // MQTT command handler

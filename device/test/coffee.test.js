@@ -55,6 +55,14 @@ test("alive publishes to mon/<id>/alive non-retained every 60s, NTP-independent"
   assert.strictEqual(dev.publishesTo(T.hb).length, 0);
 });
 
+test("alive payload carries the Wi-Fi RSSI for the monitor's signal graph", () => {
+  const dev = createDevice({ rssi: -71 });
+  dev.ticks(2);
+  const alive = dev.publishesTo(T.alive);
+  assert.strictEqual(alive.length, 1);
+  assert.deepStrictEqual(JSON.parse(alive[0].payload), { rssi: -71 });
+});
+
 test("commands: t90/ext/sub/off behave correctly", () => {
   const dev = createDevice();
   dev.sendCommand({ c: "t90", ts: NOW });

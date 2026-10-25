@@ -91,7 +91,7 @@ mosquitto_sub --cafile ca.crt --cert YOUR_PHONE_ID.crt --key YOUR_PHONE_ID.key \
 
 ## 3. Monitoring signals (infra — emit-only)
 
-- **`mon/YOUR_DEVICE_ID/alive`** — non-retained, ~every 60 s, payload irrelevant. Subscribe and
+- **`mon/YOUR_DEVICE_ID/alive`** — non-retained, ~every 60 s, payload `{"rssi":<dBm>}` (liveness ignores it). Subscribe and
   confirm it ticks. (This is the monitor's liveness signal, NOT the app heartbeat.)
 - **`devices/YOUR_DEVICE_ID/online`** — Shelly built-in LWT (retained); `true` when connected,
   `false`/empty on ungraceful drop.
