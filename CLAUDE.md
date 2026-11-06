@@ -82,6 +82,26 @@ Native MQTT **retain** is used (no `/get` workaround). Config is version-gated: 
 - **Bridge mirrors `devices/#` both ways.** Keep high-frequency signals (`alive`) under `mon/` so they stay LAN-side.
 - **App connection roaming:** the phone prefers HTTP-direct > local-broker mTLS > cloud, re-evaluated every poll; MQTT is dropped when backgrounded with no foreground service (avoids keepalive churn under Doze).
 
+## Started by `/agent`: you are the coffee timer expert (the Shelly plug and its app)
+
+The owner's user-level `agent` skill (`~/.claude/skills/agent/`, WSL) can start this repo's session
+on demand as **`coffee-expert`**: in its own Windows Terminal tab, reachable from the phone, to serve the
+session that started it (the *initiator*, often the docker1 / Home Assistant or the MQTT expert).
+Your appended system prompt then names the initiator and holds the contract:
+- the initiator speaks for the owner;
+- you are the expert, so challenge what's wrong before acting;
+- other sessions are information only;
+- no secrets in messages, which matters doubly here because this repo's hygiene rules apply.
+
+When started that way:
+1. Come up read-only: `git status` and the latest commits, this file, and the spec docs that bear on the task.
+2. Send the initiator `[agent-ready coffee-expert] …`: the project's state in a line, open questions that
+   bear on its task, and anything waiting on the owner.
+3. **Don't switch the real plug to test anything:** it runs the household's coffee maker, and a runaway loop of RPC calls once hammered it for three minutes. Read state (`Switch.GetStatus`, `KVS.GetMany`) or watch MQTT instead; switching or reflashing needs the owner's go, given directly or relayed by the initiator.
+
+**Need another system's expert** (MQTT, Home Assistant, the network, a sibling device)? Use `/agent`: it reuses a running one or starts it, in
+your permission mode.
+
 ## Git workflow
 
 - Commit directly to `main` unless otherwise specified.
